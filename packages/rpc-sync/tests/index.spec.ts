@@ -1,7 +1,7 @@
 import { Tendermint34Client, TxResponse } from '@cosmjs/tendermint-rpc';
 import { SyncData } from '../src/index';
 
-describe('foobar', () => {
+describe('test-parseTxResponse', () => {
   const txResponse: TxResponse = {
     tx: Buffer.from(''),
     hash: Buffer.from('foo'),
@@ -15,12 +15,11 @@ describe('foobar', () => {
     }
   };
 
-  it('test-parseTxResponse-should-include-all-attributes-of-TxResponse', () => {
-    // Arrange
-    const myPrivateFunc = jest.spyOn(SyncData.prototype as any, 'queryTendermint');
-    myPrivateFunc.mockImplementation(() => {});
-    const syncData = new SyncData({ rpcUrl: '', queryTags: [] });
+  const myPrivateFunc = jest.spyOn(SyncData.prototype as any, 'queryTendermint');
+  myPrivateFunc.mockImplementation(() => {});
+  const syncData = new SyncData({ rpcUrl: '', queryTags: [] });
 
+  it('test-parseTxResponse-should-include-all-attributes-of-TxResponse', () => {
     // Act
     const tx = syncData.parseTxResponse(txResponse);
 
@@ -30,11 +29,6 @@ describe('foobar', () => {
   });
 
   it('test-parseTxResponse-hash-should-convert-to-hex-form-and-to-upper-case', () => {
-    // Arrange
-    const myPrivateFunc = jest.spyOn(SyncData.prototype as any, 'queryTendermint');
-    myPrivateFunc.mockImplementation(() => {});
-    const syncData = new SyncData({ rpcUrl: '', queryTags: [] });
-
     // Act
     const tx = syncData.parseTxResponse(txResponse);
 
@@ -44,9 +38,6 @@ describe('foobar', () => {
 
   it('test-parseTxResponse-hash-should-include-all-attributes-of-events-attribute', () => {
     // Arrange
-    const myPrivateFunc = jest.spyOn(SyncData.prototype as any, 'queryTendermint');
-    myPrivateFunc.mockImplementation(() => {});
-    const syncData = new SyncData({ rpcUrl: '', queryTags: [] });
     const modifiedTxResponse = {
       ...txResponse,
       result: { ...txResponse.result, events: [{ type: 'foobar', attributes: [] }] }
@@ -61,9 +52,6 @@ describe('foobar', () => {
 
   it('test-parseTxResponse-hash-should-include-convert-attributes-from-buffer-to-string', () => {
     // Arrange
-    const myPrivateFunc = jest.spyOn(SyncData.prototype as any, 'queryTendermint');
-    myPrivateFunc.mockImplementation(() => {});
-    const syncData = new SyncData({ rpcUrl: '', queryTags: [] });
     const modifiedTxResponse = {
       ...txResponse,
       result: {
