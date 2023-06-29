@@ -7,6 +7,7 @@
   "scripts": {
     "postinstall": "patch-package",
     "build": "tsc -p",
+    "test": "jest",
     "deploy": "yarn publish --access public"
   },
   "devDependencies": {

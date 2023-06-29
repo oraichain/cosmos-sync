@@ -1,12 +1,11 @@
-import { Tendermint34Client } from '@cosmjs/tendermint-rpc';
+import { Tendermint34Client, TxResponse } from '@cosmjs/tendermint-rpc';
 import { buildQuery } from '@cosmjs/tendermint-rpc/build/tendermint37/requests';
 import { QueryTag } from '@cosmjs/tendermint-rpc/build/tendermint37';
 import { Event } from 'cosmjs-types/tendermint/abci/types';
 import { Readable, Writable } from 'stream';
 
-export type Tx = {
+export type Tx = Omit<TxResponse, 'hash'> & {
   hash: string;
-  height: number;
   timestamp?: string;
   events: readonly Event[];
 };
@@ -56,6 +55,22 @@ export class SyncData extends Readable {
 
   _read() {}
 
+  parseTxResponse(tx: TxResponse): Tx {
+    return {
+      ...tx,
+      hash: Buffer.from(tx.hash).toString('hex').toUpperCase(),
+      events: tx.result.events.map((event) => ({
+        ...event,
+        attributes: event.attributes.map((attr) => ({
+          ...attr,
+          index: (attr as any).index,
+          key: Buffer.from(attr.key).toString(),
+          value: Buffer.from(attr.value).toString()
+        }))
+      }))
+    };
+  }
+
   private async queryTendermint() {
     const { offset, limit, interval, queryTags, rpcUrl } = this.options;
     const tendermint = await Tendermint34Client.connect(rpcUrl);
@@ -67,18 +82,7 @@ export class SyncData extends Readable {
           page: offset,
           per_page: limit
         });
-        const storedResults = result.txs.map((tx) => ({
-          ...tx,
-          hash: Buffer.from(tx.hash).toString('hex').toUpperCase(),
-          events: tx.result.events.map((event) => ({
-            ...event,
-            attributes: event.attributes.map((attr) => ({
-              ...attr,
-              key: Buffer.from(attr.key).toString(),
-              value: Buffer.from(attr.value).toString()
-            }))
-          }))
-        }));
+        const storedResults = result.txs.map((tx) => this.parseTxResponse(tx));
         this.options.offset = offset * limit > result.totalCount ? offset : offset + 1;
         this.push({
           txs: storedResults,
