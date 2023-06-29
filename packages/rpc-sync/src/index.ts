@@ -1,4 +1,4 @@
-import { Tendermint34Client, Event as RpcEvent } from '@cosmjs/tendermint-rpc';
+import { Tendermint34Client } from '@cosmjs/tendermint-rpc';
 import { buildQuery } from '@cosmjs/tendermint-rpc/build/tendermint37/requests';
 import { QueryTag } from '@cosmjs/tendermint-rpc/build/tendermint37';
 import { Event } from 'cosmjs-types/tendermint/abci/types';
