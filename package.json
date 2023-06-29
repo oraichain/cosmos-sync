@@ -10,7 +10,7 @@
     "deploy": "yarn publish --access public"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.0",
+    "@types/jest": "^29.5.2",
     "@types/node": "^18.15.8",
     "jest": "^29.5.0",
     "lerna": "^5.6.1",
