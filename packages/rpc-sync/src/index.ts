@@ -44,8 +44,11 @@ export type SyncDataOptions = {
 };
 
 export abstract class SyncData extends Readable {
-  constructor(public readonly options: SyncDataOptions) {
+  public readonly options: SyncDataOptions;
+  constructor(options: SyncDataOptions) {
     super();
+    // override with default options
+    this.options = { offset: 1, limit: 100, interval: 5000, ...options };
   }
 
   _read() {
