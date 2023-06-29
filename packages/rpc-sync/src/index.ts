@@ -7,6 +7,7 @@ import { Readable, Writable } from 'stream';
 export type Tx = {
   hash: string;
   height: number;
+  timestamp?: string;
   events: readonly Event[];
 };
 
@@ -64,7 +65,14 @@ export abstract class SyncData extends Readable {
         const storedResults = result.txs.map((tx) => ({
           ...tx,
           hash: Buffer.from(tx.hash).toString('hex').toUpperCase(),
-          events: tx.result.events
+          events: tx.result.events.map((event) => ({
+            ...event,
+            attributes: event.attributes.map((attr) => ({
+              ...attr,
+              key: Buffer.from(attr.key).toString(),
+              value: Buffer.from(attr.value).toString()
+            }))
+          }))
         }));
         this.push({ txs: storedResults, total: result.totalCount });
       } catch (error) {
