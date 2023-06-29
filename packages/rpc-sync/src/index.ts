@@ -1,13 +1,13 @@
 import { Tendermint34Client, TxResponse } from '@cosmjs/tendermint-rpc';
 import { buildQuery } from '@cosmjs/tendermint-rpc/build/tendermint37/requests';
 import { QueryTag } from '@cosmjs/tendermint-rpc/build/tendermint37';
-import { Event } from 'cosmjs-types/tendermint/abci/types';
+import { StringEvent } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 import { Readable, Writable } from 'stream';
 
 export type Tx = Omit<TxResponse, 'hash'> & {
   hash: string;
   timestamp?: string;
-  events: readonly Event[];
+  events: readonly StringEvent[];
 };
 
 export type Txs = {

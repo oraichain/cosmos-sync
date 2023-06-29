@@ -1,0 +1,12 @@
+{
+  "name": "@oraichain/cosmos-lcd-sync",
+  "version": "1.0.0",
+  "main": "build/index.js",
+  "license": "Apache 2.0",
+  "files": [
+    "build/"
+  ],
+  "dependencies": {
+    "abort-controller": "^3.0.0"
+  }
+}
