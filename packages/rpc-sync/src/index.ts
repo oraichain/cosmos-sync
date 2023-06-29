@@ -21,13 +21,13 @@ export abstract class WriteData extends Writable {
     super();
   }
 
-  async _write(chunk: any, encoding, next) {
+  async _write(chunk: any, encoding: BufferEncoding, callback: (error?: Error) => void): Promise<void> {
     try {
       await this.process(chunk);
     } catch (error) {
       console.log('error writing data: ', error);
     } finally {
-      next();
+      callback();
     }
   }
 
