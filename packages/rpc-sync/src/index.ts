@@ -13,7 +13,9 @@ export type Tx = {
 
 export type Txs = {
   txs: Tx[];
+  offset: number;
   total: number;
+  queryTags: QueryTag[];
 };
 
 export abstract class WriteData extends Writable {
@@ -21,7 +23,7 @@ export abstract class WriteData extends Writable {
     super({ objectMode: true });
   }
 
-  async _write(chunk: any, encoding: BufferEncoding, callback: (error?: Error) => void): Promise<void> {
+  async _write(chunk: any, _encoding: BufferEncoding, callback: (error?: Error) => void): Promise<void> {
     let success = false;
     try {
       success = await this.process(chunk);
@@ -43,27 +45,27 @@ export type SyncDataOptions = {
   interval?: number;
 };
 
-export abstract class SyncData extends Readable {
-  public readonly options: SyncDataOptions;
+export class SyncData extends Readable {
+  public options: SyncDataOptions;
   constructor(options: SyncDataOptions) {
-    super();
+    super({ objectMode: true });
     // override with default options
     this.options = { offset: 1, limit: 100, interval: 5000, ...options };
-  }
-
-  _read() {
     this.queryTendermint();
   }
 
+  _read() {}
+
   private async queryTendermint() {
-    const tendermint = await Tendermint34Client.connect(this.options.rpcUrl);
-    const query = buildQuery({ tags: this.options.queryTags });
+    const { offset, limit, interval, queryTags, rpcUrl } = this.options;
+    const tendermint = await Tendermint34Client.connect(rpcUrl);
+    const query = buildQuery({ tags: queryTags });
     while (true) {
       try {
         const result = await tendermint.txSearch({
           query,
-          page: this.options.offset,
-          per_page: this.options.limit
+          page: offset,
+          per_page: limit
         });
         const storedResults = result.txs.map((tx) => ({
           ...tx,
@@ -77,12 +79,19 @@ export abstract class SyncData extends Readable {
             }))
           }))
         }));
-        this.push({ txs: storedResults, total: result.totalCount });
+        this.options.offset = offset * limit > result.totalCount ? offset : offset + 1;
+        this.push({
+          txs: storedResults,
+          total: result.totalCount,
+          offset: this.options.offset,
+          queryTags
+        });
       } catch (error) {
         console.log('error query tendermint tx search: ', error);
         // only returns if search successfully
       }
-      await new Promise((resolve) => setTimeout(resolve, this.options.interval));
+      await new Promise((resolve) => setTimeout(resolve, interval));
+      await this.queryTendermint();
     }
   }
 }
