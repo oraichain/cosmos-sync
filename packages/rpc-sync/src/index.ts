@@ -66,12 +66,12 @@ export abstract class SyncData extends Readable {
           hash: Buffer.from(tx.hash).toString('hex').toUpperCase(),
           events: tx.result.events
         }));
-        await new Promise((resolve) => setTimeout(resolve, this.options.interval));
         this.push({ txs: storedResults, total: result.totalCount });
       } catch (error) {
         console.log('error query tendermint tx search: ', error);
         // only returns if search successfully
       }
+      await new Promise((resolve) => setTimeout(resolve, this.options.interval));
     }
   }
 }
