@@ -85,13 +85,17 @@ export class SyncData extends Readable {
     return finalQuery;
   }
 
+  private calculateNewOffset(offset: number, limit: number, total: Long | number | undefined): number {
+    return total ? Math.min(offset + limit, parseInt(total.toString())) : offset + limit;
+  }
+
   private async queryLcd() {
     const { offset, limit, interval, queryTags } = this.options;
     while (true) {
       try {
         const { tx_responses, pagination } = await this.fetchWithTimeout();
         const total = pagination.total;
-        this.options.offset = total ? Math.min(offset + limit, parseInt(total.toString())) : offset + limit;
+        this.options.offset = this.calculateNewOffset(offset, limit, total);
         this.push({
           txs: tx_responses,
           total,

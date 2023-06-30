@@ -31,43 +31,17 @@ describe('test-parseTxResponse', () => {
     expect(result).toEqual(exepectedTagString);
   });
 
-  // it('test-parseTxResponse-hash-should-convert-to-hex-form-and-to-upper-case', () => {
-  //   // Act
-  //   const tx = syncData.parseTxResponse(txResponse);
+  it.each<[number, number, Long | number | undefined, number]>([
+    [0, 0, 0, 0],
+    [1, 2, undefined, 3],
+    [1, 2, 4, 3],
+    [1, 2, 1, 1]
+  ])('test-calculateNewOffset-should-return-correct-new-offset', (offset, limit, total, expectedNewOffset) => {
+    // Act
+    const syncDataProto = Object.getPrototypeOf(syncData);
+    const result = syncDataProto.calculateNewOffset(offset, limit, total);
 
-  //   // Assert
-  //   expect(tx.hash).toEqual(Buffer.from('foo').toString('hex').toUpperCase());
-  // });
-
-  // it('test-parseTxResponse-hash-should-include-all-attributes-of-events-attribute', () => {
-  //   // Arrange
-  //   const modifiedTxResponse = {
-  //     ...txResponse,
-  //     result: { ...txResponse.result, events: [{ type: 'foobar', attributes: [] }] }
-  //   };
-
-  //   // Act
-  //   const tx = syncData.parseTxResponse(modifiedTxResponse);
-
-  //   // Assert
-  //   expect(tx.events[0].type).toEqual('foobar');
-  // });
-
-  // it('test-parseTxResponse-hash-should-include-convert-attributes-from-buffer-to-string', () => {
-  //   // Arrange
-  //   const modifiedTxResponse = {
-  //     ...txResponse,
-  //     result: {
-  //       ...txResponse.result,
-  //       events: [{ type: 'foobar', attributes: [{ key: Buffer.from('abc'), value: Buffer.from('xyz') }] }]
-  //     }
-  //   };
-
-  //   // Act
-  //   const tx = syncData.parseTxResponse(modifiedTxResponse);
-
-  //   // Assert
-  //   expect(tx.events[0].attributes[0].key).toEqual('abc');
-  //   expect(tx.events[0].attributes[0].value).toEqual('xyz');
-  // });
+    // Assert
+    expect(result).toEqual(expectedNewOffset);
+  });
 });

@@ -67,4 +67,17 @@ describe('test-parseTxResponse', () => {
     expect(tx.events[0].attributes[0].key).toEqual('abc');
     expect(tx.events[0].attributes[0].value).toEqual('xyz');
   });
+
+  it.each<[number, number, number, number]>([
+    [0, 0, 0, 1],
+    [1, 2, 4, 2],
+    [1, 2, 1, 1]
+  ])('test-calculateNewOffset-should-return-correct-new-offset', (offset, limit, total, expectedNewOffset) => {
+    // Act
+    const syncDataProto = Object.getPrototypeOf(syncData);
+    const result = syncDataProto.calculateNewOffset(offset, limit, total);
+
+    // Assert
+    expect(result).toEqual(expectedNewOffset);
+  });
 });

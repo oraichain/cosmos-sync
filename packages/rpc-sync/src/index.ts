@@ -71,6 +71,10 @@ export class SyncData extends Readable {
     };
   }
 
+  private calculateNewOffset(offset: number, limit: number, total: number): number {
+    return offset * limit > total ? offset : offset + 1;
+  }
+
   private async queryTendermint() {
     const { offset, limit, interval, queryTags, rpcUrl } = this.options;
     const tendermint = await Tendermint34Client.connect(rpcUrl);
@@ -83,7 +87,7 @@ export class SyncData extends Readable {
           per_page: limit
         });
         const storedResults = result.txs.map((tx) => this.parseTxResponse(tx));
-        this.options.offset = offset * limit > result.totalCount ? offset : offset + 1;
+        this.options.offset = this.calculateNewOffset(offset, limit, result.totalCount);
         this.push({
           txs: storedResults,
           total: result.totalCount,
