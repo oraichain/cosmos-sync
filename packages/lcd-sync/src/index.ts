@@ -2,10 +2,18 @@ import { QueryTag } from '@cosmjs/tendermint-rpc/build/tendermint37';
 import { Readable, Writable } from 'stream';
 import AbortSignal from 'abort-controller';
 import { GetTxsEventResponse } from 'cosmjs-types/cosmos/tx/v1beta1/service';
-import { TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
+import { StringEvent, TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
+
+export type ModifiedTxResponse = Omit<TxResponse, 'events'> & {
+  events: StringEvent[];
+};
+
+export type TxsEventResponse = Omit<GetTxsEventResponse, 'txResponses'> & {
+  tx_responses: ModifiedTxResponse[];
+};
 
 export type Txs = {
-  txs: TxResponse[];
+  txs: ModifiedTxResponse[];
   offset: number;
   total: number;
   queryTags: QueryTag[];
@@ -60,7 +68,7 @@ export class SyncData extends Readable {
     const url = `${lcdUrl}/cosmos/tx/v1beta1/txs?${this.parseQueryTags(
       queryTags
     )}pagination.offset=${offset}&pagination.limit=${limit}`;
-    const response: GetTxsEventResponse = await fetch(url, {
+    const response: TxsEventResponse = await fetch(url, {
       signal: signal as any
     }).then((res) => {
       clearTimeout(timeoutId);
@@ -81,11 +89,11 @@ export class SyncData extends Readable {
     const { offset, limit, interval, queryTags } = this.options;
     while (true) {
       try {
-        const { txResponses, pagination } = await this.fetchWithTimeout();
+        const { tx_responses, pagination } = await this.fetchWithTimeout();
         const total = pagination.total;
-        this.options.offset = total ? Math.min(offset + limit, total.toNumber()) : offset + limit;
+        this.options.offset = total ? Math.min(offset + limit, parseInt(total.toString())) : offset + limit;
         this.push({
-          txs: txResponses,
+          txs: tx_responses,
           total,
           offset: this.options.offset,
           queryTags
