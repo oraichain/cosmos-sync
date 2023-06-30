@@ -1,4 +1,4 @@
-import { Tendermint34Client, TxResponse } from '@cosmjs/tendermint-rpc';
+import { QueryTag, Tendermint34Client, TxResponse } from '@cosmjs/tendermint-rpc';
 import { SyncData } from '../src/index';
 
 describe('test-parseTxResponse', () => {
@@ -19,16 +19,16 @@ describe('test-parseTxResponse', () => {
   queryLcdSpy.mockImplementation(() => {});
   const syncData = new SyncData({ lcdUrl: '', queryTags: [] });
 
-  it('test-parseQueryTags-should-return-correct-encoded-uri-query-string', () => {
+  it.each<[QueryTag[], string]>([
+    [[{ key: 'foo', value: 'bar' }], `events=${encodeURIComponent("foo='bar'")}&`],
+    [[], '']
+  ])('test-parseQueryTags-should-return-correct-encoded-uri-query-string', (tags, exepectedTagString) => {
     // Act
     const syncDataProto = Object.getPrototypeOf(syncData);
-    const key = 'foo';
-    const value = 'bar';
-    const result = syncDataProto.parseQueryTags([{ key, value }]);
-    console.log('after testing: ', result);
+    const result = syncDataProto.parseQueryTags(tags);
 
     // Assert
-    expect(result).toEqual('events=' + encodeURIComponent(`${key}='${value}'`) + '&');
+    expect(result).toEqual(exepectedTagString);
   });
 
   // it('test-parseTxResponse-hash-should-convert-to-hex-form-and-to-upper-case', () => {

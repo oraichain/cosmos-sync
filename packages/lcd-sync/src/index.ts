@@ -72,7 +72,7 @@ export class SyncData extends Readable {
   private parseQueryTags(queryTags: QueryTag[]): string {
     let finalQuery = '';
     for (let tag of queryTags) {
-      finalQuery = finalQuery.concat('events=' + encodeURIComponent(`${tag.key}='${tag.value}'`) + '&');
+      finalQuery = finalQuery.concat(`events=${encodeURIComponent(`${tag.key}='${tag.value}'`)}&`);
     }
     return finalQuery;
   }
