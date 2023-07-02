@@ -49,7 +49,12 @@ export class SyncData extends Readable {
   constructor(options: SyncDataOptions) {
     super({ objectMode: true });
     // override with default options
-    this.options = { offset: 1, limit: 100, interval: 5000, ...options };
+    this.options = {
+      offset: options.offset ?? 1,
+      limit: options.limit ?? 1000,
+      interval: options.interval ?? 5000,
+      ...options
+    };
     this.queryTendermint();
   }
 
@@ -71,23 +76,26 @@ export class SyncData extends Readable {
     };
   }
 
-  private calculateNewOffset(offset: number, limit: number, total: number): number {
-    return offset * limit > total ? offset : offset + 1;
+  private calculateMaxSearchHeight(offset: number, limit: number, currentHeight: number): number {
+    if (offset > currentHeight || offset + limit > currentHeight) return currentHeight;
+    if (offset + limit <= currentHeight) return offset + limit;
   }
 
   private async queryTendermint() {
     const { offset, limit, interval, queryTags, rpcUrl } = this.options;
     const tendermint = await Tendermint34Client.connect(rpcUrl);
-    const query = buildQuery({ tags: queryTags });
+    const currentHeight = (await tendermint.block()).block.header.height;
+    this.options.offset = this.calculateMaxSearchHeight(offset, limit, currentHeight);
+    const query = buildQuery({
+      tags: queryTags,
+      raw: `tx.height > ${offset} AND tx.height <= ${this.options.offset}`
+    });
     while (true) {
       try {
         const result = await tendermint.txSearch({
-          query,
-          page: offset,
-          per_page: limit
+          query
         });
         const storedResults = result.txs.map((tx) => this.parseTxResponse(tx));
-        this.options.offset = this.calculateNewOffset(offset, limit, result.totalCount);
         this.push({
           txs: storedResults,
           total: result.totalCount,
