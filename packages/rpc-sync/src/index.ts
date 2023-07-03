@@ -48,11 +48,11 @@ export class SyncData extends Readable {
     // override with default options
     this.options = {
       offset: options.offset ?? 1,
-      limit: options.limit ?? 1000,
+      limit: Math.min(5000, options.limit ?? 1000),
       interval: options.interval ?? 5000,
       ...options
     };
-    this.queryTendermint();
+    this.queryTendermintParallel();
   }
 
   _read() {}
@@ -75,27 +75,64 @@ export class SyncData extends Readable {
     });
   }
 
-  private async queryTendermint() {
-    const { offset, limit, interval, queryTags, rpcUrl } = this.options;
+  private calculateOffsetParallel(threadId: number, offset: number) {
+    return threadId * this.options.limit + offset;
+  }
+
+  private calculateParallelLevel(offset: number, currentHeight: number) {
+    // if negative then default is 1. If larger than 4 then max is 4
+    return Math.max(1, Math.min(4, (currentHeight - offset) / this.options.limit));
+  }
+
+  private async queryTendermintParallel() {
+    const { rpcUrl, offset, limit, queryTags, interval } = this.options;
     const stargateClient = await StargateClient.connect(rpcUrl);
     const currentHeight = (await stargateClient.getBlock()).header.height;
-    this.options.offset = this.calculateMaxSearchHeight(offset, limit, currentHeight);
-    const query = this.buildTendermintQuery(queryTags, offset, this.options.offset);
+    let parallelLevel = this.calculateParallelLevel(offset, currentHeight);
+    let threads = [];
+    for (let i = 0; i < parallelLevel; i++) {
+      threads.push(this.queryTendermint(i, offset, currentHeight));
+    }
+    const results: Tx[][] = await Promise.all(threads);
+    let storedResults: Tx[] = [];
+    for (let result of results) {
+      storedResults.push(...result);
+    }
+    // console.log('stored results length: ', storedResults.length);
+    this.options.offset = this.calculateMaxSearchHeight(
+      // parallel - 1 because its the final thread id which handles the highest offset possible assuming we have processed all height before it
+      this.calculateOffsetParallel(parallelLevel - 1, offset),
+      limit,
+      currentHeight
+    );
+    this.push({
+      txs: storedResults,
+      offset: this.options.offset,
+      queryTags
+    });
+    await new Promise((resolve) => setTimeout(resolve, interval));
+    await this.queryTendermintParallel();
+  }
+
+  private async queryTendermint(threadId: number, offset: number, currentHeight: number): Promise<Tx[]> {
+    const { queryTags, rpcUrl, limit } = this.options;
+    const stargateClient = await StargateClient.connect(rpcUrl);
+    const newOffset = this.calculateOffsetParallel(threadId, offset);
+    const query = this.buildTendermintQuery(
+      queryTags,
+      newOffset,
+      this.calculateMaxSearchHeight(newOffset, limit, currentHeight)
+    );
     while (true) {
       try {
         const result = await stargateClient.searchTx(query);
         const storedResults = result.map((tx) => this.parseTxResponse(tx));
-        this.push({
-          txs: storedResults,
-          offset: this.options.offset,
-          queryTags
-        });
+        // console.log('thread id: ', threadId, 'stored result length: ', storedResults.length, 'query: ', query);
+        return storedResults;
       } catch (error) {
         console.log('error query stargateClient tx search: ', error);
         // only returns if search successfully
       }
-      await new Promise((resolve) => setTimeout(resolve, interval));
-      await this.queryTendermint();
     }
   }
 }
