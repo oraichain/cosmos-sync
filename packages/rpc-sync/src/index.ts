@@ -68,15 +68,19 @@ export class SyncData extends Readable {
     return Math.min(offset + limit, currentHeight);
   }
 
+  private buildTendermintQuery(queryTags: QueryTag[], oldOffset: number, newOffset: number) {
+    return buildQuery({
+      tags: queryTags,
+      raw: `tx.height >= ${oldOffset} AND tx.height <= ${newOffset}`
+    });
+  }
+
   private async queryTendermint() {
     const { offset, limit, interval, queryTags, rpcUrl } = this.options;
     const stargateClient = await StargateClient.connect(rpcUrl);
     const currentHeight = (await stargateClient.getBlock()).header.height;
     this.options.offset = this.calculateMaxSearchHeight(offset, limit, currentHeight);
-    const query = buildQuery({
-      tags: queryTags,
-      raw: `tx.height >= ${offset} AND tx.height <= ${this.options.offset}`
-    });
+    const query = this.buildTendermintQuery(queryTags, offset, this.options.offset);
     while (true) {
       try {
         const result = await stargateClient.searchTx(query);

@@ -1,83 +1,66 @@
-// import { Tendermint34Client, TxResponse } from '@cosmjs/tendermint-rpc';
-// import { SyncData } from '../src/index';
+import { SyncData } from '../src/index';
+import { IndexedTx } from '@cosmjs/stargate';
+import { QueryTag } from '@cosmjs/tendermint-rpc/build/tendermint37';
 
-// describe('test-parseTxResponse', () => {
-//   const txResponse: TxResponse = {
-//     tx: Buffer.from(''),
-//     hash: Buffer.from('foo'),
-//     height: 1,
-//     index: 1,
-//     result: {
-//       code: 0,
-//       events: [],
-//       gasUsed: 0,
-//       gasWanted: 0
-//     }
-//   };
+describe('test-parseTxResponse', () => {
+  let txResponse: IndexedTx = {
+    tx: Buffer.from(''),
+    code: 0,
+    hash: 'foo',
+    height: 1,
+    txIndex: 1,
+    rawLog: '',
+    msgResponses: [],
+    gasUsed: 0,
+    gasWanted: 0,
+    events: []
+  };
 
-//   const myPrivateFunc = jest.spyOn(SyncData.prototype as any, 'queryTendermint');
-//   myPrivateFunc.mockImplementation(() => {});
-//   const syncData = new SyncData({ rpcUrl: '', queryTags: [] });
+  const myPrivateFunc = jest.spyOn(SyncData.prototype as any, 'queryTendermint');
+  myPrivateFunc.mockImplementation(() => {});
+  const syncData = new SyncData({ rpcUrl: '', queryTags: [] });
 
-//   it('test-parseTxResponse-should-include-all-attributes-of-TxResponse', () => {
-//     // Act
-//     const tx = syncData.parseTxResponse(txResponse);
+  it('test-parseTxResponse-should-include-all-attributes-of-TxResponse', () => {
+    // prepare
+    (txResponse as any).timestamp = '1';
 
-//     // Assert
-//     expect(tx.height).toEqual(1);
-//     expect(tx.index).toEqual(1);
-//   });
+    // Act
+    const tx = syncData.parseTxResponse(txResponse);
 
-//   it('test-parseTxResponse-hash-should-convert-to-hex-form-and-to-upper-case', () => {
-//     // Act
-//     const tx = syncData.parseTxResponse(txResponse);
+    // Assert
+    expect(tx.height).toEqual(1);
+    expect(tx.txIndex).toEqual(1);
+    expect(tx.timestamp).toEqual('1');
+  });
 
-//     // Assert
-//     expect(tx.hash).toEqual(Buffer.from('foo').toString('hex').toUpperCase());
-//   });
+  it.each<[number, number, number, number]>([
+    [1, 2, 3, 3],
+    [1, 2, 0, 0],
+    [1, 2, 4, 3]
+  ])(
+    'test-calculateMaxSearchHeight-should-return-correct-new-offset',
+    (offset, limit, currentHeight, expectedNewOffset) => {
+      // Act
+      const syncDataProto = Object.getPrototypeOf(syncData);
+      const result = syncDataProto.calculateMaxSearchHeight(offset, limit, currentHeight);
 
-//   it('test-parseTxResponse-hash-should-include-all-attributes-of-events-attribute', () => {
-//     // Arrange
-//     const modifiedTxResponse = {
-//       ...txResponse,
-//       result: { ...txResponse.result, events: [{ type: 'foobar', attributes: [] }] }
-//     };
+      // Assert
+      expect(result).toEqual(expectedNewOffset);
+    }
+  );
 
-//     // Act
-//     const tx = syncData.parseTxResponse(modifiedTxResponse);
+  it.each<[QueryTag[], number, number, string]>([
+    [[{ key: 'foo', value: 'bar' }], 2, 3, "foo='bar' AND tx.height >= 2 AND tx.height <= 3"],
+    [[], 2, 3, 'tx.height >= 2 AND tx.height <= 3']
+  ])(
+    'test-buildTendermintQuery-should-return-correct-build-query',
+    (queryTags, oldOffset, newOffset, expectedQuery) => {
+      // Act
+      const syncDataProto = Object.getPrototypeOf(syncData);
+      const result = syncDataProto.buildTendermintQuery(queryTags, oldOffset, newOffset);
 
-//     // Assert
-//     expect(tx.events[0].type).toEqual('foobar');
-//   });
-
-//   it('test-parseTxResponse-hash-should-include-convert-attributes-from-buffer-to-string', () => {
-//     // Arrange
-//     const modifiedTxResponse = {
-//       ...txResponse,
-//       result: {
-//         ...txResponse.result,
-//         events: [{ type: 'foobar', attributes: [{ key: Buffer.from('abc'), value: Buffer.from('xyz') }] }]
-//       }
-//     };
-
-//     // Act
-//     const tx = syncData.parseTxResponse(modifiedTxResponse);
-
-//     // Assert
-//     expect(tx.events[0].attributes[0].key).toEqual('abc');
-//     expect(tx.events[0].attributes[0].value).toEqual('xyz');
-//   });
-
-//   it.each<[number, number, number, number]>([
-//     [0, 0, 0, 1],
-//     [1, 2, 4, 2],
-//     [1, 2, 1, 1]
-//   ])('test-calculateNewOffset-should-return-correct-new-offset', (offset, limit, total, expectedNewOffset) => {
-//     // Act
-//     const syncDataProto = Object.getPrototypeOf(syncData);
-//     const result = syncDataProto.calculateNewOffset(offset, limit, total);
-
-//     // Assert
-//     expect(result).toEqual(expectedNewOffset);
-//   });
-// });
+      // Assert
+      expect(result).toEqual(expectedQuery);
+    }
+  );
+});
