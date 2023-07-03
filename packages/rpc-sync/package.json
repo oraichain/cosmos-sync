@@ -5,5 +5,8 @@
   "license": "Apache 2.0",
   "files": [
     "build/"
-  ]
+  ],
+  "dependencies": {
+    "@cosmjs/stargate": "^0.31.0"
+  }
 }

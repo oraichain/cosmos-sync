@@ -1,13 +1,10 @@
-import { Tendermint34Client, TxResponse } from '@cosmjs/tendermint-rpc';
 import { buildQuery } from '@cosmjs/tendermint-rpc/build/tendermint37/requests';
 import { QueryTag } from '@cosmjs/tendermint-rpc/build/tendermint37';
-import { StringEvent } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 import { Readable, Writable } from 'stream';
+import { IndexedTx, StargateClient } from '@cosmjs/stargate';
 
-export type Tx = Omit<TxResponse, 'hash'> & {
-  hash: string;
+export type Tx = IndexedTx & {
   timestamp?: string;
-  events: readonly StringEvent[];
 };
 
 export type Txs = {
@@ -60,50 +57,37 @@ export class SyncData extends Readable {
 
   _read() {}
 
-  parseTxResponse(tx: TxResponse): Tx {
+  parseTxResponse(tx: IndexedTx): Tx {
     return {
       ...tx,
-      hash: Buffer.from(tx.hash).toString('hex').toUpperCase(),
-      events: tx.result.events.map((event) => ({
-        ...event,
-        attributes: event.attributes.map((attr) => ({
-          ...attr,
-          index: (attr as any).index,
-          key: Buffer.from(attr.key).toString(),
-          value: Buffer.from(attr.value).toString()
-        }))
-      }))
+      timestamp: (tx as any).timestamp
     };
   }
 
   private calculateMaxSearchHeight(offset: number, limit: number, currentHeight: number): number {
-    if (offset > currentHeight || offset + limit > currentHeight) return currentHeight;
-    if (offset + limit <= currentHeight) return offset + limit;
+    return Math.min(offset + limit, currentHeight);
   }
 
   private async queryTendermint() {
     const { offset, limit, interval, queryTags, rpcUrl } = this.options;
-    const tendermint = await Tendermint34Client.connect(rpcUrl);
-    const currentHeight = (await tendermint.block()).block.header.height;
+    const stargateClient = await StargateClient.connect(rpcUrl);
+    const currentHeight = (await stargateClient.getBlock()).header.height;
     this.options.offset = this.calculateMaxSearchHeight(offset, limit, currentHeight);
     const query = buildQuery({
       tags: queryTags,
-      raw: `tx.height > ${offset} AND tx.height <= ${this.options.offset}`
+      raw: `tx.height >= ${offset} AND tx.height <= ${this.options.offset}`
     });
     while (true) {
       try {
-        const result = await tendermint.txSearch({
-          query
-        });
-        const storedResults = result.txs.map((tx) => this.parseTxResponse(tx));
+        const result = await stargateClient.searchTx(query);
+        const storedResults = result.map((tx) => this.parseTxResponse(tx));
         this.push({
           txs: storedResults,
-          total: result.totalCount,
           offset: this.options.offset,
           queryTags
         });
       } catch (error) {
-        console.log('error query tendermint tx search: ', error);
+        console.log('error query stargateClient tx search: ', error);
         // only returns if search successfully
       }
       await new Promise((resolve) => setTimeout(resolve, interval));
