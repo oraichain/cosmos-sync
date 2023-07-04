@@ -66,8 +66,8 @@ export class SyncData extends Readable {
     };
   }
 
-  private calculateMaxSearchHeight(offset: number, limit: number, currentHeight: number): number {
-    return Math.min(offset + limit, currentHeight);
+  private calculateMaxSearchHeight(offset: number, currentHeight: number): number {
+    return Math.min(offset + this.options.limit, currentHeight);
   }
 
   private buildTendermintQuery(queryTags: QueryTag[], oldOffset: number, newOffset: number) {
@@ -87,11 +87,10 @@ export class SyncData extends Readable {
   }
 
   private async queryTendermintParallel() {
-    const { rpcUrl, offset, limit, queryTags, interval } = this.options;
+    const { rpcUrl, offset, queryTags, interval } = this.options;
     const stargateClient = await StargateClient.connect(rpcUrl);
     const currentHeight = (await stargateClient.getBlock()).header.height;
     let parallelLevel = this.calculateParallelLevel(offset, currentHeight);
-    console.log('parallel level: ', parallelLevel);
     let threads = [];
     for (let i = 0; i < parallelLevel; i++) {
       threads.push(this.queryTendermint(i, offset, currentHeight));
@@ -106,7 +105,6 @@ export class SyncData extends Readable {
     this.options.offset = this.calculateMaxSearchHeight(
       // parallel - 1 because its the final thread id which handles the highest offset possible assuming we have processed all height before it
       this.calculateOffsetParallel(parallelLevel - 1, offset),
-      limit,
       currentHeight
     );
     this.push({
@@ -119,13 +117,13 @@ export class SyncData extends Readable {
   }
 
   private async queryTendermint(threadId: number, offset: number, currentHeight: number): Promise<Tx[]> {
-    const { queryTags, rpcUrl, limit, timeoutSleep } = this.options;
+    const { queryTags, rpcUrl, timeoutSleep } = this.options;
     const stargateClient = await StargateClient.connect(rpcUrl);
     const newOffset = this.calculateOffsetParallel(threadId, offset);
     const query = this.buildTendermintQuery(
       queryTags,
       newOffset,
-      this.calculateMaxSearchHeight(newOffset, limit, currentHeight)
+      this.calculateMaxSearchHeight(newOffset, currentHeight)
     );
     while (true) {
       try {
