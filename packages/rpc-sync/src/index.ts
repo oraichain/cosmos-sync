@@ -2,6 +2,7 @@ import { buildQuery } from '@cosmjs/tendermint-rpc/build/tendermint37/requests';
 import { QueryTag } from '@cosmjs/tendermint-rpc/build/tendermint37';
 import { Readable, Writable } from 'stream';
 import { IndexedTx, StargateClient } from '@cosmjs/stargate';
+import { Tendermint34Client, tendermint34 } from '@cosmjs/tendermint-rpc';
 
 export type Tx = IndexedTx & {
   timestamp?: string;
@@ -40,6 +41,7 @@ export type SyncDataOptions = {
   limit?: number;
   interval?: number;
   timeoutSleep?: number;
+  maxThreadLevel?: number;
 };
 
 export class SyncData extends Readable {
@@ -52,6 +54,7 @@ export class SyncData extends Readable {
       limit: Math.min(5000, options.limit ?? 1000),
       interval: options.interval ?? 5000,
       timeoutSleep: options.timeoutSleep ?? 5000,
+      maxThreadLevel: options.maxThreadLevel ?? 4,
       ...options
     };
     this.queryTendermintParallel();
@@ -83,13 +86,16 @@ export class SyncData extends Readable {
 
   private calculateParallelLevel(offset: number, currentHeight: number) {
     // if negative then default is 1. If larger than 4 then max is 4
-    return Math.max(1, Math.floor((currentHeight - offset) / this.options.limit));
+    return Math.max(
+      1,
+      Math.min(this.options.maxThreadLevel, Math.floor((currentHeight - offset) / this.options.limit))
+    );
   }
 
   private async queryTendermintParallel() {
     const { rpcUrl, offset, queryTags, interval } = this.options;
-    const stargateClient = await StargateClient.connect(rpcUrl);
-    const currentHeight = (await stargateClient.getBlock()).header.height;
+    const tendermint = await Tendermint34Client.connect(rpcUrl);
+    const currentHeight = (await tendermint.status()).syncInfo.latestBlockHeight;
     let parallelLevel = this.calculateParallelLevel(offset, currentHeight);
     let threads = [];
     for (let i = 0; i < parallelLevel; i++) {
