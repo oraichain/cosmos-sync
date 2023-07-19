@@ -93,33 +93,39 @@ export class SyncData extends Readable {
   }
 
   private async queryTendermintParallel() {
-    const { rpcUrl, offset, queryTags, interval } = this.options;
-    const tendermint = await Tendermint34Client.connect(rpcUrl);
-    const currentHeight = (await tendermint.status()).syncInfo.latestBlockHeight;
-    let parallelLevel = this.calculateParallelLevel(offset, currentHeight);
-    let threads = [];
-    for (let i = 0; i < parallelLevel; i++) {
-      threads.push(this.queryTendermint(i, offset, currentHeight));
+    while (true) {
+      try {
+        const { rpcUrl, offset, queryTags } = this.options;
+        const tendermint = await Tendermint34Client.connect(rpcUrl);
+        const currentHeight = (await tendermint.status()).syncInfo.latestBlockHeight;
+        let parallelLevel = this.calculateParallelLevel(offset, currentHeight);
+        let threads = [];
+        for (let i = 0; i < parallelLevel; i++) {
+          threads.push(this.queryTendermint(i, offset, currentHeight));
+        }
+        const results: Tx[][] = await Promise.all(threads);
+        let storedResults: Tx[] = [];
+        for (let result of results) {
+          storedResults.push(...result);
+        }
+        // console.log('stored results length: ', storedResults.length);
+        // calculate the next offset
+        this.options.offset = this.calculateMaxSearchHeight(
+          // parallel - 1 because its the final thread id which handles the highest offset possible assuming we have processed all height before it
+          this.calculateOffsetParallel(parallelLevel - 1, offset),
+          currentHeight
+        );
+        this.push({
+          txs: storedResults,
+          offset: this.options.offset,
+          queryTags
+        });
+      } catch (error) {
+        console.log('error query tendermint parallel: ', error);
+      } finally {
+        await new Promise((resolve) => setTimeout(resolve, this.options.interval));
+      }
     }
-    const results: Tx[][] = await Promise.all(threads);
-    let storedResults: Tx[] = [];
-    for (let result of results) {
-      storedResults.push(...result);
-    }
-    // console.log('stored results length: ', storedResults.length);
-    // calculate the next offset
-    this.options.offset = this.calculateMaxSearchHeight(
-      // parallel - 1 because its the final thread id which handles the highest offset possible assuming we have processed all height before it
-      this.calculateOffsetParallel(parallelLevel - 1, offset),
-      currentHeight
-    );
-    this.push({
-      txs: storedResults,
-      offset: this.options.offset,
-      queryTags
-    });
-    await new Promise((resolve) => setTimeout(resolve, interval));
-    await this.queryTendermintParallel();
   }
 
   private async queryTendermint(threadId: number, offset: number, currentHeight: number): Promise<Tx[]> {
