@@ -105,9 +105,9 @@ export class SyncData extends Readable {
       } catch (error) {
         console.log('error query tendermint tx search: ', error);
         // only returns if search successfully
+      } finally {
+        await new Promise((resolve) => setTimeout(resolve, interval));
       }
-      await new Promise((resolve) => setTimeout(resolve, interval));
-      await this.queryLcd();
     }
   }
 }
