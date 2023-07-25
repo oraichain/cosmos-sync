@@ -76,7 +76,7 @@ export class SyncData extends Readable {
   private buildTendermintQuery(queryTags: QueryTag[], oldOffset: number, newOffset: number) {
     return buildQuery({
       tags: queryTags,
-      raw: `tx.height >= ${oldOffset} AND tx.height <= ${newOffset}`
+      raw: `tx.height >= ${oldOffset} AND tx.height < ${newOffset}`
     });
   }
 
