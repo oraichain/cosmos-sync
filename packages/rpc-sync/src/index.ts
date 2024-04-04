@@ -69,8 +69,8 @@ export class SyncData extends Readable {
     };
   }
 
-  private calculateMaxSearchHeight(offset: number, currentHeight: number): number {
-    return Math.min(offset + this.options.limit, currentHeight);
+  private calculateMaxSearchHeight(offset: number, limit: number, currentHeight: number): number {
+    return Math.min(offset + limit || 1, currentHeight);
   }
 
   private buildTendermintQuery(queryTags: QueryTag[], oldOffset: number, newOffset: number) {
@@ -113,6 +113,7 @@ export class SyncData extends Readable {
         this.options.offset = this.calculateMaxSearchHeight(
           // parallel - 1 because its the final thread id which handles the highest offset possible assuming we have processed all height before it
           this.calculateOffsetParallel(parallelLevel - 1, offset),
+          this.options.limit,
           currentHeight
         );
         this.push({
@@ -135,7 +136,7 @@ export class SyncData extends Readable {
     const query = this.buildTendermintQuery(
       queryTags,
       newOffset,
-      this.calculateMaxSearchHeight(newOffset, currentHeight)
+      this.calculateMaxSearchHeight(newOffset, this.options.limit, currentHeight)
     );
     while (true) {
       try {

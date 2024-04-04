@@ -85,7 +85,7 @@ export class SyncData extends Readable {
     return finalQuery;
   }
 
-  private calculateNewOffset(offset: number, limit: number, total: Long | number | undefined): number {
+  private calculateNewOffset(offset: number, limit: number, total: Long | number | BigInt | undefined): number {
     return total ? Math.min(offset + limit, parseInt(total.toString())) : offset + limit;
   }
 

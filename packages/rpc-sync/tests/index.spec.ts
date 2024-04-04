@@ -50,8 +50,8 @@ describe('test-parseTxResponse', () => {
   );
 
   it.each<[QueryTag[], number, number, string]>([
-    [[{ key: 'foo', value: 'bar' }], 2, 3, "foo='bar' AND tx.height >= 2 AND tx.height <= 3"],
-    [[], 2, 3, 'tx.height >= 2 AND tx.height <= 3']
+    [[{ key: 'foo', value: 'bar' }], 2, 3, "foo='bar' AND tx.height >= 2 AND tx.height < 3"],
+    [[], 2, 3, 'tx.height >= 2 AND tx.height < 3']
   ])(
     'test-buildTendermintQuery-should-return-correct-build-query',
     (queryTags, oldOffset, newOffset, expectedQuery) => {
