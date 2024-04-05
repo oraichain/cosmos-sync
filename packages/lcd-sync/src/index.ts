@@ -50,6 +50,8 @@ export class SyncData extends EventEmitter {
   public destroy() {
     this.running = false;
     clearTimeout(this.timer);
+    // avoid leak
+    this.removeAllListeners('data');
   }
 
   private async fetchWithTimeout() {
