@@ -28,7 +28,7 @@ export abstract class WriteData extends Writable {
       console.log('error writing data: ', error);
     } finally {
       if (success) callback();
-      else exit(1);
+      else callback(new Error('Error processing data'));
     }
   }
 
