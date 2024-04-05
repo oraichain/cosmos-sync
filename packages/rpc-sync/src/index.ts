@@ -1,6 +1,6 @@
 import { buildQuery } from '@cosmjs/tendermint-rpc/build/tendermint37/requests';
 import { QueryTag } from '@cosmjs/tendermint-rpc/build/tendermint37';
-import { Readable, Writable } from 'stream';
+import { EventEmitter, Readable, Writable } from 'stream';
 import { IndexedTx, StargateClient } from '@cosmjs/stargate';
 import { exit } from 'process';
 
@@ -15,26 +15,6 @@ export type Txs = {
   queryTags: QueryTag[];
 };
 
-export abstract class WriteData extends Writable {
-  constructor() {
-    super({ objectMode: true });
-  }
-
-  async _write(chunk: any, _encoding: BufferEncoding, callback: (error?: Error) => void): Promise<void> {
-    let success = false;
-    try {
-      success = await this.process(chunk);
-    } catch (error) {
-      console.log('error writing data: ', error);
-    } finally {
-      if (success) callback();
-      else callback(new Error('Error processing data'));
-    }
-  }
-
-  abstract process(txs: Txs): Promise<boolean>;
-}
-
 /**
  * timeoutSleep is deprepcated
  */
@@ -48,10 +28,11 @@ export type SyncDataOptions = {
   maxThreadLevel?: number;
 };
 
-export class SyncData extends Readable {
+export class SyncData extends EventEmitter {
   public options: SyncDataOptions;
+  private running = false;
   constructor(options: SyncDataOptions) {
-    super({ objectMode: true });
+    super({ captureRejections: true });
     // override with default options
     this.options = {
       offset: options.offset ?? 1,
@@ -61,10 +42,15 @@ export class SyncData extends Readable {
       maxThreadLevel: options.maxThreadLevel ?? 4,
       ...options
     };
+    this.queryTendermintParallel();
   }
 
-  _read() {
-    this.queryTendermintParallel();
+  public start() {
+    this.running = true;
+  }
+
+  public stop() {
+    this.running = false;
   }
 
   parseTxResponse(tx: IndexedTx): Tx {
@@ -97,13 +83,15 @@ export class SyncData extends Readable {
     );
   }
 
-  private async queryTendermintParallel() {
+  private queryTendermintParallel = async () => {
     // sleep so that we can delay the number of RPC calls per sec, reducing the traffic load
-    await new Promise((resolve) => setTimeout(resolve, this.options.interval));
-    const { rpcUrl, queryTags } = this.options;
+    const { rpcUrl, queryTags, interval, limit, offset } = this.options;
+
+    // wait until running is on
+    if (!this.running) return setTimeout(this.queryTendermintParallel, interval);
+
     const stargateClient = await StargateClient.connect(rpcUrl);
     try {
-      const { offset } = this.options;
       const currentHeight = await stargateClient.getHeight();
       console.log('current height: ', currentHeight);
       let parallelLevel = this.calculateParallelLevel(offset, currentHeight);
@@ -120,10 +108,10 @@ export class SyncData extends Readable {
       this.options.offset = this.calculateMaxSearchHeight(
         // parallel - 1 because its the final thread id which handles the highest offset possible assuming we have processed all height before it
         this.calculateOffsetParallel(parallelLevel - 1, offset),
-        this.options.limit,
+        limit,
         currentHeight
       );
-      this.push({
+      this.emit('data', {
         txs: storedResults,
         offset: this.options.offset,
         queryTags
@@ -131,9 +119,11 @@ export class SyncData extends Readable {
     } catch (error) {
       console.log('error query tendermint parallel: ', error);
       // this makes sure that the stream doesn't stop and keeps reading forever even when there's an error
-      this.push(undefined);
+      throw error;
+    } finally {
+      setTimeout(this.queryTendermintParallel, interval);
     }
-  }
+  };
 
   private async queryTendermint(
     stargateClient: StargateClient,

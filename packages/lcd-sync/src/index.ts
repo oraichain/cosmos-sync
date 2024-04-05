@@ -1,6 +1,5 @@
 import { QueryTag } from '@cosmjs/tendermint-rpc/build/tendermint37';
-import { Readable, Writable } from 'stream';
-import AbortSignal from 'abort-controller';
+import { EventEmitter } from 'stream';
 import { GetTxsEventResponse } from 'cosmjs-types/cosmos/tx/v1beta1/service';
 import { StringEvent, TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 
@@ -19,61 +18,50 @@ export type Txs = {
   queryTags: QueryTag[];
 };
 
-export abstract class WriteData extends Writable {
-  constructor() {
-    super({ objectMode: true });
-  }
-
-  async _write(chunk: any, _encoding: BufferEncoding, callback: (error?: Error) => void): Promise<void> {
-    let success = false;
-    try {
-      success = await this.process(chunk);
-    } catch (error) {
-      console.log('error writing data: ', error);
-    } finally {
-      if (success) callback();
-    }
-  }
-
-  abstract process(txs: Txs): Promise<boolean>;
-}
-
 export type SyncDataOptions = {
   queryTags: QueryTag[];
   lcdUrl: string;
   offset?: number;
   limit?: number;
+  timeout?: number;
   interval?: number;
 };
 
-export class SyncData extends Readable {
+export class SyncData extends EventEmitter {
   public options: SyncDataOptions;
+  private running = false;
+  private timer = undefined;
   constructor(options: SyncDataOptions) {
-    super({ objectMode: true });
+    super({ captureRejections: true });
     // override with default options
-    this.options = { offset: 1, limit: 100, interval: 5000, ...options };
+    this.options = { offset: 1, limit: 100, timeout: 30000, interval: 5000, ...options };
+
     this.queryLcd();
   }
 
-  _read() {}
+  public start() {
+    this.running = true;
+  }
+
+  public stop() {
+    this.running = false;
+  }
+
+  public destroy() {
+    this.running = false;
+    clearTimeout(this.timer);
+  }
 
   private async fetchWithTimeout() {
-    const controller = new AbortSignal();
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-    }, 30000);
-    const { signal } = controller;
-    const { lcdUrl, offset, limit, queryTags } = this.options;
+    const { lcdUrl, offset, limit, queryTags, timeout } = this.options;
 
     const url = `${lcdUrl}/cosmos/tx/v1beta1/txs?${this.parseQueryTags(
       queryTags
     )}pagination.offset=${offset}&pagination.limit=${limit}`;
+
     const response: TxsEventResponse = await fetch(url, {
-      signal: signal as any
-    }).then((res) => {
-      clearTimeout(timeoutId);
-      return res.json();
-    });
+      signal: AbortSignal.timeout(timeout)
+    }).then((res) => res.json());
     return response;
   }
 
@@ -89,25 +77,27 @@ export class SyncData extends Readable {
     return total ? Math.min(offset + limit, parseInt(total.toString())) : offset + limit;
   }
 
-  private async queryLcd() {
+  private queryLcd = async () => {
     const { offset, limit, interval, queryTags } = this.options;
-    while (true) {
-      try {
-        const { tx_responses, pagination } = await this.fetchWithTimeout();
-        const total = pagination.total;
-        this.options.offset = this.calculateNewOffset(offset, limit, total);
-        this.push({
-          txs: tx_responses,
-          total,
-          offset: this.options.offset,
-          queryTags
-        });
-      } catch (error) {
-        console.log('error query tendermint tx search: ', error);
-        // only returns if search successfully
-      } finally {
-        await new Promise((resolve) => setTimeout(resolve, interval));
-      }
+
+    // wait until running is on
+    if (!this.running) return (this.timer = setTimeout(this.queryLcd, interval));
+
+    try {
+      const { tx_responses, total } = await this.fetchWithTimeout();
+      this.options.offset = this.calculateNewOffset(offset, limit, total);
+      this.emit('data', {
+        txs: tx_responses,
+        total,
+        offset: this.options.offset,
+        queryTags
+      });
+    } catch (error) {
+      console.log('error query tendermint tx search: ', error);
+      // only returns if search successfully
+      throw error;
+    } finally {
+      this.timer = setTimeout(this.queryLcd, interval);
     }
-  }
+  };
 }
