@@ -31,6 +31,7 @@ export type SyncDataOptions = {
 export class SyncData extends EventEmitter {
   public options: SyncDataOptions;
   private running = false;
+  private timer = undefined;
   constructor(options: SyncDataOptions) {
     super({ captureRejections: true });
     // override with default options
@@ -51,6 +52,13 @@ export class SyncData extends EventEmitter {
 
   public stop() {
     this.running = false;
+  }
+
+  public destroy() {
+    this.running = false;
+    clearTimeout(this.timer);
+    // avoid leak
+    this.removeAllListeners('data');
   }
 
   parseTxResponse(tx: IndexedTx): Tx {
@@ -88,7 +96,7 @@ export class SyncData extends EventEmitter {
     const { rpcUrl, queryTags, interval, limit, offset } = this.options;
 
     // wait until running is on
-    if (!this.running) return setTimeout(this.queryTendermintParallel, interval);
+    if (!this.running) return (this.timer = setTimeout(this.queryTendermintParallel, interval));
     const stargateClient = await StargateClient.connect(rpcUrl);
     try {
       const currentHeight = await stargateClient.getHeight();
@@ -119,7 +127,7 @@ export class SyncData extends EventEmitter {
       // this makes sure that the stream doesn't stop and keeps reading forever even when there's an error
       throw error;
     } finally {
-      setTimeout(this.queryTendermintParallel, interval);
+      this.timer = setTimeout(this.queryTendermintParallel, interval);
     }
   };
 
