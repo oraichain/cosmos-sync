@@ -89,11 +89,9 @@ export class SyncData extends EventEmitter {
 
     // wait until running is on
     if (!this.running) return setTimeout(this.queryTendermintParallel, interval);
-
     const stargateClient = await StargateClient.connect(rpcUrl);
     try {
       const currentHeight = await stargateClient.getHeight();
-      console.log('current height: ', currentHeight);
       let parallelLevel = this.calculateParallelLevel(offset, currentHeight);
       let threads = [];
       for (let i = 0; i < parallelLevel; i++) {
