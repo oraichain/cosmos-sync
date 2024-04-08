@@ -43,11 +43,12 @@ export class SyncData extends EventEmitter {
       maxThreadLevel: options.maxThreadLevel ?? 4,
       ...options
     };
-    this.queryTendermintParallel();
   }
 
-  public start() {
+  public async start() {
     this.running = true;
+    const stargateClient = await StargateClient.connect(this.options.rpcUrl);
+    await this.queryTendermintParallel(stargateClient);
   }
 
   public stop() {
@@ -91,19 +92,18 @@ export class SyncData extends EventEmitter {
     );
   }
 
-  private queryTendermintParallel = async () => {
+  private queryTendermintParallel = async (client: StargateClient) => {
     // sleep so that we can delay the number of RPC calls per sec, reducing the traffic load
-    const { rpcUrl, queryTags, interval, limit, offset } = this.options;
+    const { queryTags, interval, limit, offset } = this.options;
 
     // wait until running is on
-    if (!this.running) return (this.timer = setTimeout(this.queryTendermintParallel, interval));
-    const stargateClient = await StargateClient.connect(rpcUrl);
+    if (!this.running) return (this.timer = setTimeout(() => this.queryTendermintParallel(client), interval));
     try {
-      const currentHeight = await stargateClient.getHeight();
+      const currentHeight = await client.getHeight();
       let parallelLevel = this.calculateParallelLevel(offset, currentHeight);
       let threads = [];
       for (let i = 0; i < parallelLevel; i++) {
-        threads.push(this.queryTendermint(stargateClient, i, offset, currentHeight));
+        threads.push(this.queryTendermint(client, i, offset, currentHeight));
       }
       const results: Tx[][] = await Promise.all(threads);
       let storedResults: Tx[] = [];
@@ -127,7 +127,7 @@ export class SyncData extends EventEmitter {
       // this makes sure that the stream doesn't stop and keeps reading forever even when there's an error
       throw error;
     } finally {
-      this.timer = setTimeout(this.queryTendermintParallel, interval);
+      this.timer = setTimeout(() => this.queryTendermintParallel(client), interval);
     }
   };
 
