@@ -79,7 +79,7 @@ export class SyncData extends EventEmitter {
     return total ? Math.min(offset + limit, parseInt(total.toString())) : offset + limit;
   }
 
-  private queryLcd = async () => {
+  queryLcd = async () => {
     const { offset, limit, interval, queryTags } = this.options;
 
     // wait until running is on
