@@ -1,4 +1,5 @@
 import { SyncData, Txs } from '../src/index';
+import timer from 'timers/promises';
 
 describe('test-sync-data', () => {
   const syncData = new SyncData({ lcdUrl: 'https://lcd.orai.io', queryTags: [], interval: 500 });
@@ -11,11 +12,7 @@ describe('test-sync-data', () => {
     syncData.start();
 
     // should run 2 times
-    await new Promise((resolve) =>
-      setTimeout(() => {
-        syncData.destroy();
-        resolve(true);
-      }, syncData.options.interval * 2.5)
-    );
+    await timer.setTimeout(syncData.options.interval! * 2.5);
+    syncData.destroy();
   });
 });
