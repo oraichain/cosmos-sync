@@ -15,9 +15,9 @@ describe('test-parseTxResponse', () => {
     }
   };
 
-  const queryLcdSpy = jest.spyOn(SyncData.prototype as any, 'queryLcd');
-  queryLcdSpy.mockImplementation(() => {});
   const syncData = new SyncData({ lcdUrl: '', queryTags: [] });
+  const queryLcdSpy = jest.spyOn(syncData, 'queryLcd');
+  queryLcdSpy.mockImplementation(() => {});
 
   it.each<[QueryTag[], string]>([
     [[{ key: 'foo', value: 'bar' }], `events=${encodeURIComponent("foo='bar'")}&`],
