@@ -4,7 +4,7 @@ import { EventEmitter } from 'stream';
 import { Event, IndexedTx, StargateClient } from '@cosmjs/stargate';
 import { parseTxEvent } from './helpers';
 import { NewBlockHeaderEvent } from '@cosmjs/tendermint-rpc';
-import { Stream } from 'xstream';
+import xs, { Stream } from 'xstream';
 
 export enum CHANNEL {
   QUERY = 'query',
@@ -200,28 +200,13 @@ export class SyncData extends EventEmitter {
     // subscribe the tx by filter
     const channelTx = this.tendermintClient.subscribeTx(query);
 
-    channelTx.addListener({
-      next: (data) => {
-        const parsedTxEvent = parseTxEvent(data);
-        this.emit(CHANNEL.SUBSCRIBE_TXS, parsedTxEvent);
-      },
-      error: (error) => {
-        console.log('On error channelTx stream ', error);
-        this.emit(CHANNEL.ERROR, error);
-      },
-      complete: () => {
-        console.log('On complete channelTx stream');
-        this.emit(CHANNEL.COMPLETE);
-      }
-    });
     // subscribe the new blockHeader for get timestamp
     const channelNewBlockHeader = this.tendermintClient.subscribeNewBlockHeader();
-
     channelNewBlockHeader.addListener({
       next: (data) => {
         this.emit(CHANNEL.SUBSCRIBE_HEADER, {
           height: data.height,
-          timestamp: Math.ceil(data.time.getTime() / 1000)
+          timestamp: data.time.toISOString()
         });
       },
       error: (error) => {
@@ -230,6 +215,30 @@ export class SyncData extends EventEmitter {
       },
       complete: () => {
         console.log('On complete channelNewBlockHeader stream');
+        this.emit(CHANNEL.COMPLETE);
+      }
+    })
+
+    // to get timeStamp from 2 channel
+    const combinedChannel = xs.combine(channelTx, channelNewBlockHeader);
+    
+    combinedChannel.addListener({
+      next: ([event, blockHeader]) => {
+        const parsedTxEvent = parseTxEvent(event);
+        if(event.height === blockHeader.height) {
+          this.emit(CHANNEL.SUBSCRIBE_TXS, {
+            ...parsedTxEvent,
+            height: blockHeader.height,
+            timestamp: blockHeader.time.toISOString()
+          });
+        }
+      },
+      error: (error) => {
+        console.log('On error combinedChannel stream ', error);
+        this.emit(CHANNEL.ERROR, error);
+      },
+      complete: () => {
+        console.log('On complete combinedChannel stream');
         this.emit(CHANNEL.COMPLETE);
       }
     });
@@ -252,17 +261,12 @@ export class SyncData extends EventEmitter {
 //   sync.on(CHANNEL.SUBSCRIBE_TXS, (data) => {
 //     console.log({ data });
 //   });
-
 //   sync.on(CHANNEL.SUBSCRIBE_HEADER, (data) => {
 //     console.log({ data });
 //   });
 
 //   sync.on(CHANNEL.COMPLETE, (data) => {
 //     console.log('complete');
-//   });
-
-//   sync.on(CHANNEL.QUERY, (data) => {
-//     console.log(data);
 //   });
 
 // })();
