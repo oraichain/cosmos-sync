@@ -6,7 +6,7 @@
   ],
   "scripts": {
     "postinstall": "patch-package",
-    "build": "tsc -p",
+    "build": "lerna run build --concurrency 1",
     "test": "jest",
     "deploy": "yarn publish --access public"
   },

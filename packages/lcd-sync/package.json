@@ -6,5 +6,11 @@
   "files": [
     "build/"
   ],
+  "scripts": {
+    "postinstall": "patch-package",
+    "build": "tsc -p tsconfig.json",
+    "test": "jest",
+    "deploy": "yarn publish --access public"
+  },
   "dependencies": {}
 }

@@ -1,11 +1,17 @@
 {
   "name": "@oraichain/cosmos-rpc-sync",
-  "version": "2.0.0",
+  "version": "2.0.1-0",
   "main": "build/index.js",
   "license": "Apache 2.0",
   "files": [
     "build/"
   ],
+  "scripts": {
+    "postinstall": "patch-package",
+    "build": "tsc -p tsconfig.json",
+    "test": "jest",
+    "deploy": "yarn publish --access public"
+  },
   "dependencies": {
     "@cosmjs/encoding": "^0.32.3",
     "@cosmjs/proto-signing": "^0.32.3",
