@@ -14,6 +14,11 @@ export enum CHANNEL {
   COMPLETE = 'complete'
 }
 
+export type BlockTimeStamp = {
+  height: number;
+  timestamp: number;
+};
+
 export type Tx = IndexedTx & {
   timestamp?: string;
 };
@@ -35,7 +40,6 @@ export type TxSubscribe = {
 export type TxsSubscribe = {
   txs: TxSubscribe[];
 };
-
 /**
  * timeoutSleep is deprecated
  */
@@ -263,3 +267,5 @@ export class SyncData extends EventEmitter {
 
 //   await new Promise((resolve) => setTimeout(resolve, 10000));
 // })();
+
+export * from './helpers';
