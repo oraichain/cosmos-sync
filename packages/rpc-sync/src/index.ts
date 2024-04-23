@@ -51,8 +51,6 @@ export type SyncDataOptions = {
 
 export class SyncData extends EventEmitter {
   public options: SyncDataOptions;
-  private running = false;
-  private timer = undefined;
   private tendermintClient: Tendermint37Client = undefined;
   constructor(options: SyncDataOptions) {
     super({ captureRejections: true });
@@ -68,39 +66,26 @@ export class SyncData extends EventEmitter {
   }
 
   public async start() {
-    this.tendermintClient = await Tendermint37Client.connect(this.options.rpcUrl.replace('http', 'ws')).catch((err) =>
-      { console.log(err)
-        throw err
-      }
-    )
+    this.tendermintClient = await Tendermint37Client.connect(
+      this.options.rpcUrl.replace(/(http)(s)?\:\/\//, 'ws$2://')
+    );
     const stargateClient = await StargateClient.create(this.tendermintClient);
-    const [channelTx, channelNewBlockHeader] = (await this.subscribeEvents()) as [
-      Stream<TxEvent>,
-      Stream<NewBlockHeaderEvent>
-    ];
+    const [channelTx, channelNewBlockHeader] = this.subscribeEvents() as [Stream<TxEvent>, Stream<NewBlockHeaderEvent>];
     // Query the from offset to blockNewHeader.height - 1
     channelNewBlockHeader.addListener({
-      next: (data) => {
-        if (!this.running) {
-          this.running = true;
-          this.queryTendermintParallel(stargateClient, data.height - 1);
-        }
+      next: (data) => this.queryTendermintParallel(stargateClient, data.height - 1),
+      error: (error) => {
+        console.log('On error channelNewBlockHeader stream query tendermint ', error);
+        this.emit(CHANNEL.ERROR, error);
       }
     });
     return [channelTx, channelNewBlockHeader];
   }
 
-  public stop() {
-    this.running = false;
-  }
-
   public destroy() {
-    this.running = false;
-    clearTimeout(this.timer);
-    // avoid leak
     Object.values(CHANNEL).forEach((channel) => {
       this.removeAllListeners(channel);
-    })
+    });
   }
 
   parseTxResponse(tx: IndexedTx): Tx {
@@ -135,10 +120,8 @@ export class SyncData extends EventEmitter {
 
   private queryTendermintParallel = async (client: StargateClient, currentHeight: number) => {
     // sleep so that we can delay the number of RPC calls per sec, reducing the traffic load
-    const { queryTags, interval, limit, offset } = this.options;
+    const { queryTags, limit, offset } = this.options;
     // wait until running is on
-    if (!this.running)
-      return (this.timer = setTimeout(() => this.queryTendermintParallel(client, currentHeight), interval));
     try {
       let parallelLevel = this.calculateParallelLevel(offset, currentHeight);
       let threads = [];
@@ -164,10 +147,7 @@ export class SyncData extends EventEmitter {
       });
     } catch (error) {
       console.log('error query tendermint parallel: ', error);
-      // this makes sure that the stream doesn't stop and keeps reading forever even when there's an error
-      throw error;
-    } finally {
-      this.timer = setTimeout(() => this.queryTendermintParallel(client, currentHeight), interval);
+      this.emit(CHANNEL.ERROR, error);
     }
   };
 
@@ -189,7 +169,7 @@ export class SyncData extends EventEmitter {
     return storedResults;
   }
 
-  private async subscribeEvents() {
+  private subscribeEvents() {
     const { queryTags } = this.options;
     const query = buildQuery({ tags: queryTags });
 
