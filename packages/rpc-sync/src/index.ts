@@ -265,7 +265,6 @@ export class SyncData extends EventEmitter {
 //     console.log(data);
 //   });
 
-//   await new Promise((resolve) => setTimeout(resolve, 10000));
 // })();
 
 export * from './helpers';
