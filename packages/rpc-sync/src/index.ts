@@ -4,7 +4,7 @@ import { EventEmitter } from 'stream';
 import { Event, IndexedTx, StargateClient } from '@cosmjs/stargate';
 import { parseTxEvent } from './helpers';
 import { NewBlockHeaderEvent } from '@cosmjs/tendermint-rpc';
-import { Stream } from 'xstream';
+import xs, { Stream } from 'xstream';
 
 export enum CHANNEL {
   QUERY = 'query',
@@ -13,6 +13,11 @@ export enum CHANNEL {
   ERROR = 'error',
   COMPLETE = 'complete'
 }
+
+export type BlockTimeStamp = {
+  height: number;
+  timestamp: number;
+};
 
 export type Tx = IndexedTx & {
   timestamp?: string;
@@ -35,7 +40,6 @@ export type TxSubscribe = {
 export type TxsSubscribe = {
   txs: TxSubscribe[];
 };
-
 /**
  * timeoutSleep is deprecated
  */
@@ -52,6 +56,8 @@ export type SyncDataOptions = {
 export class SyncData extends EventEmitter {
   public options: SyncDataOptions;
   private tendermintClient: Tendermint37Client = undefined;
+  private running = false;
+
   constructor(options: SyncDataOptions) {
     super({ captureRejections: true });
     // override with default options
@@ -66,19 +72,17 @@ export class SyncData extends EventEmitter {
   }
 
   public async start() {
+    this.running = true;
     this.tendermintClient = await Tendermint37Client.connect(
       this.options.rpcUrl.replace(/(http)(s)?\:\/\//, 'ws$2://')
     );
     const stargateClient = await StargateClient.create(this.tendermintClient);
-    const [channelTx, channelNewBlockHeader] = this.subscribeEvents() as [Stream<TxEvent>, Stream<NewBlockHeaderEvent>];
-    // Query the from offset to blockNewHeader.height - 1
-    channelNewBlockHeader.addListener({
-      next: (data) => this.queryTendermintParallel(stargateClient, data.height - 1),
-      error: (error) => {
-        console.log('On error channelNewBlockHeader stream query tendermint ', error);
-        this.emit(CHANNEL.ERROR, error);
-      }
-    });
+    const [channelTx, channelNewBlockHeader] = this.subscribeEvents() as [
+      Stream<TxEvent>,
+      Stream<NewBlockHeaderEvent>
+    ];
+    await this.queryTendermintParallel(stargateClient);
+    
     return [channelTx, channelNewBlockHeader];
   }
 
@@ -118,11 +122,14 @@ export class SyncData extends EventEmitter {
     );
   }
 
-  private queryTendermintParallel = async (client: StargateClient, currentHeight: number) => {
+  private queryTendermintParallel = async (client: StargateClient) => {
     // sleep so that we can delay the number of RPC calls per sec, reducing the traffic load
     const { queryTags, limit, offset } = this.options;
     // wait until running is on
+    if (!this.running)
+      return (setTimeout(() => this.queryTendermintParallel(client), this.options.interval));
     try {
+      let currentHeight = await client.getHeight();
       let parallelLevel = this.calculateParallelLevel(offset, currentHeight);
       let threads = [];
       for (let i = 0; i < parallelLevel; i++) {
@@ -147,7 +154,10 @@ export class SyncData extends EventEmitter {
       });
     } catch (error) {
       console.log('error query tendermint parallel: ', error);
-      this.emit(CHANNEL.ERROR, error);
+      // this makes sure that the stream doesn't stop and keeps reading forever even when there's an error
+      throw error;
+    } finally {
+      setTimeout(() => this.queryTendermintParallel(client), this.options.interval);
     }
   };
 
@@ -176,28 +186,13 @@ export class SyncData extends EventEmitter {
     // subscribe the tx by filter
     const channelTx = this.tendermintClient.subscribeTx(query);
 
-    channelTx.addListener({
-      next: (data) => {
-        const parsedTxEvent = parseTxEvent(data);
-        this.emit(CHANNEL.SUBSCRIBE_TXS, parsedTxEvent);
-      },
-      error: (error) => {
-        console.log('On error channelTx stream ', error);
-        this.emit(CHANNEL.ERROR, error);
-      },
-      complete: () => {
-        console.log('On complete channelTx stream');
-        this.emit(CHANNEL.COMPLETE);
-      }
-    });
     // subscribe the new blockHeader for get timestamp
     const channelNewBlockHeader = this.tendermintClient.subscribeNewBlockHeader();
-
     channelNewBlockHeader.addListener({
       next: (data) => {
         this.emit(CHANNEL.SUBSCRIBE_HEADER, {
           height: data.height,
-          timestamp: Math.ceil(data.time.getTime() / 1000)
+          timestamp: data.time.toISOString()
         });
       },
       error: (error) => {
@@ -208,38 +203,34 @@ export class SyncData extends EventEmitter {
         console.log('On complete channelNewBlockHeader stream');
         this.emit(CHANNEL.COMPLETE);
       }
+    })
+
+    // to get timeStamp from 2 channel
+    const combinedChannel = xs.combine(channelTx, channelNewBlockHeader);
+    
+    combinedChannel.addListener({
+      next: ([event, blockHeader]) => {
+        const parsedTxEvent = parseTxEvent(event);
+        if(event.height === blockHeader.height) {
+          this.emit(CHANNEL.SUBSCRIBE_TXS, {
+            ...parsedTxEvent,
+            height: blockHeader.height,
+            timestamp: blockHeader.time.toISOString()
+          });
+        }
+      },
+      error: (error) => {
+        console.log('On error combinedChannel stream ', error);
+        this.emit(CHANNEL.ERROR, error);
+      },
+      complete: () => {
+        console.log('On complete combinedChannel stream');
+        this.emit(CHANNEL.COMPLETE);
+      }
     });
 
     return [channelTx, channelNewBlockHeader];
   }
 }
 
-// (async () => {
-//   const options: SyncDataOptions = {
-//     queryTags: [
-//       { key: 'wasm._contract_address', value: 'orai1nt58gcu4e63v7k55phnr3gaym9tvk3q4apqzqccjuwppgjuyjy6sxk8yzp' }
-//     ],
-//     rpcUrl: 'http://3.14.142.99:26657',
-//     offset: 18000860
-//   };
-//   const sync = new SyncData(options);
-//   const [channelTx, channelNewBlockHeader] = await sync.start();
-
-//   sync.on(CHANNEL.SUBSCRIBE_TXS, (data) => {
-//     console.log({ data });
-//   });
-
-//   sync.on(CHANNEL.SUBSCRIBE_HEADER, (data) => {
-//     console.log({ data });
-//   });
-
-//   sync.on(CHANNEL.COMPLETE, (data) => {
-//     console.log('complete');
-//   });
-
-//   sync.on(CHANNEL.QUERY, (data) => {
-//     console.log(data);
-//   });
-
-//   await new Promise((resolve) => setTimeout(resolve, 10000));
-// })();
+export * from './helpers';
