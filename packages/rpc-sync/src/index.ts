@@ -58,6 +58,7 @@ export class SyncData extends EventEmitter {
   private running = false;
   private timer = undefined;
   private tendermintClient: Tendermint37Client = undefined;
+
   constructor(options: SyncDataOptions) {
     super({ captureRejections: true });
     // override with default options
@@ -82,15 +83,8 @@ export class SyncData extends EventEmitter {
       Stream<TxEvent>,
       Stream<NewBlockHeaderEvent>
     ];
-    // Query the from offset to blockNewHeader.height - 1
-    channelNewBlockHeader.addListener({
-      next: (data) => {
-        if (!this.running) {
-          this.running = true;
-          this.queryTendermintParallel(stargateClient, data.height - 1);
-        }
-      }
-    });
+    await this.queryTendermintParallel(stargateClient);
+    
     return [channelTx, channelNewBlockHeader];
   }
 
@@ -137,13 +131,14 @@ export class SyncData extends EventEmitter {
     );
   }
 
-  private queryTendermintParallel = async (client: StargateClient, currentHeight: number) => {
+  private queryTendermintParallel = async (client: StargateClient) => {
     // sleep so that we can delay the number of RPC calls per sec, reducing the traffic load
     const { queryTags, interval, limit, offset } = this.options;
     // wait until running is on
     if (!this.running)
-      return (this.timer = setTimeout(() => this.queryTendermintParallel(client, currentHeight), interval));
+      return (this.timer = setTimeout(() => this.queryTendermintParallel(client), interval));
     try {
+      let currentHeight = await client.getHeight();
       let parallelLevel = this.calculateParallelLevel(offset, currentHeight);
       let threads = [];
       for (let i = 0; i < parallelLevel; i++) {
@@ -171,7 +166,7 @@ export class SyncData extends EventEmitter {
       // this makes sure that the stream doesn't stop and keeps reading forever even when there's an error
       throw error;
     } finally {
-      this.timer = setTimeout(() => this.queryTendermintParallel(client, currentHeight), interval);
+      this.timer = setTimeout(() => this.queryTendermintParallel(client), interval);
     }
   };
 
@@ -246,29 +241,5 @@ export class SyncData extends EventEmitter {
     return [channelTx, channelNewBlockHeader];
   }
 }
-
-// (async () => {
-//   const options: SyncDataOptions = {
-//     queryTags: [
-//       { key: 'wasm._contract_address', value: 'orai1nt58gcu4e63v7k55phnr3gaym9tvk3q4apqzqccjuwppgjuyjy6sxk8yzp' }
-//     ],
-//     rpcUrl: 'http://3.14.142.99:26657',
-//     offset: 18000860
-//   };
-//   const sync = new SyncData(options);
-//   const [channelTx, channelNewBlockHeader] = await sync.start();
-
-//   sync.on(CHANNEL.SUBSCRIBE_TXS, (data) => {
-//     console.log({ data });
-//   });
-//   sync.on(CHANNEL.SUBSCRIBE_HEADER, (data) => {
-//     console.log({ data });
-//   });
-
-//   sync.on(CHANNEL.COMPLETE, (data) => {
-//     console.log('complete');
-//   });
-
-// })();
 
 export * from './helpers';
