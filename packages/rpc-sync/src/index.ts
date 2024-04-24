@@ -5,6 +5,7 @@ import { Event, IndexedTx, StargateClient } from '@cosmjs/stargate';
 import { parseTxEvent } from './helpers';
 import { NewBlockHeaderEvent } from '@cosmjs/tendermint-rpc';
 import xs, { Stream } from 'xstream';
+import { clearTimeout } from 'timers';
 
 export enum CHANNEL {
   QUERY = 'query',
@@ -57,6 +58,7 @@ export class SyncData extends EventEmitter {
   public options: SyncDataOptions;
   private tendermintClient: Tendermint37Client = undefined;
   private running = false;
+  private timer = null;
 
   constructor(options: SyncDataOptions) {
     super({ captureRejections: true });
@@ -87,6 +89,9 @@ export class SyncData extends EventEmitter {
   }
 
   public destroy() {
+    if(this.timer) {
+      clearTimeout(this.timer);
+    }
     Object.values(CHANNEL).forEach((channel) => {
       this.removeAllListeners(channel);
     });
@@ -127,7 +132,7 @@ export class SyncData extends EventEmitter {
     const { queryTags, limit, offset } = this.options;
     // wait until running is on
     if (!this.running)
-      return (setTimeout(() => this.queryTendermintParallel(client), this.options.interval));
+      return this.timer = setTimeout(() => this.queryTendermintParallel(client), this.options.interval);
     try {
       let currentHeight = await client.getHeight();
       let parallelLevel = this.calculateParallelLevel(offset, currentHeight);
@@ -157,7 +162,7 @@ export class SyncData extends EventEmitter {
       // this makes sure that the stream doesn't stop and keeps reading forever even when there's an error
       throw error;
     } finally {
-      setTimeout(() => this.queryTendermintParallel(client), this.options.interval);
+      this.timer = setTimeout(() => this.queryTendermintParallel(client), this.options.interval);
     }
   };
 
