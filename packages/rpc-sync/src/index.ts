@@ -79,17 +79,14 @@ export class SyncData extends EventEmitter {
       this.options.rpcUrl.replace(/(http)(s)?\:\/\//, 'ws$2://')
     );
     const stargateClient = await StargateClient.create(this.tendermintClient);
-    const [channelTx, channelNewBlockHeader] = this.subscribeEvents() as [
-      Stream<TxEvent>,
-      Stream<NewBlockHeaderEvent>
-    ];
+    const [channelTx, channelNewBlockHeader] = this.subscribeEvents() as [Stream<TxEvent>, Stream<NewBlockHeaderEvent>];
     await this.queryTendermintParallel(stargateClient);
-    
+
     return [channelTx, channelNewBlockHeader];
   }
 
   public destroy() {
-    if(this.timer) {
+    if (this.timer) {
       clearTimeout(this.timer);
     }
     Object.values(CHANNEL).forEach((channel) => {
@@ -98,7 +95,6 @@ export class SyncData extends EventEmitter {
   }
 
   parseTxResponse(tx: IndexedTx): Tx {
-
     return {
       ...tx,
       timestamp: (tx as any).timestamp
@@ -132,7 +128,7 @@ export class SyncData extends EventEmitter {
     // sleep so that we can delay the number of RPC calls per sec, reducing the traffic load
     const { queryTags, limit, offset } = this.options;
     // wait until running is on
-    if (!this.running){
+    if (!this.running) {
       this.timer = setTimeout(() => this.queryTendermintParallel(client), this.options.interval);
       return;
     }
@@ -212,22 +208,17 @@ export class SyncData extends EventEmitter {
         console.log('On complete channelNewBlockHeader stream');
         this.emit(CHANNEL.COMPLETE);
       }
-    })
+    });
 
     // to get timeStamp from 2 channel
-    const combinedChannel = xs.combine(channelTx, channelNewBlockHeader);
-    
-    combinedChannel.addListener({
-      next: ([event, blockHeader]) => {
+    channelTx.addListener({
+      next: (event) => {
         const parsedTxEvent = parseTxEvent(event);
-        // FIXME: Add cases: Multiples tx-events come before the blockHeader event comes
-        if(event.height === blockHeader.height) {
-          this.emit(CHANNEL.SUBSCRIBE_TXS, {
-            ...parsedTxEvent,
-            height: blockHeader.height,
-            timestamp: blockHeader.time.toISOString()
-          });
-        }
+        this.emit(CHANNEL.SUBSCRIBE_TXS, {
+          ...parsedTxEvent,
+          height: event.height,
+          timestamp: event.timestamp
+        });
       },
       error: (error) => {
         console.log('On error combinedChannel stream ', error);
@@ -243,20 +234,19 @@ export class SyncData extends EventEmitter {
   }
 }
 
-// (async()=>{
+// (async () => {
 //   const sync = new SyncData({
-//     rpcUrl: 'http://3.14.142.99:26657/',
+//     rpcUrl: 'http://localhost:26657/',
 //     queryTags: [],
 //     limit: 50,
-//     offset: 19000000,
+//     offset: 18980056,
 //     interval: 2000,
 //     maxThreadLevel: 4
 //   });
-//   await sync.start()
-//   sync.on(CHANNEL.QUERY, (data:Txs) => {
-//     console.log({tx: data.txs[0]})
-//   })
-
+//   await sync.start();
+//   // sync.on(CHANNEL.QUERY, (data: Txs) => {
+//   //   console.log({ tx: data.txs[0] });
+//   // });
 // })();
 
 export * from './helpers';
