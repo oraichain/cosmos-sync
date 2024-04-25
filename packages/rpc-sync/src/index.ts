@@ -216,6 +216,7 @@ export class SyncData extends EventEmitter {
     combinedChannel.addListener({
       next: ([event, blockHeader]) => {
         const parsedTxEvent = parseTxEvent(event);
+        // FIXME: Add cases: Multiples tx-events come before the blockHeader event comes
         if(event.height === blockHeader.height) {
           this.emit(CHANNEL.SUBSCRIBE_TXS, {
             ...parsedTxEvent,
