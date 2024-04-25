@@ -1,7 +1,7 @@
 import { buildQuery } from '@cosmjs/tendermint-rpc/build/tendermint37/requests';
 import { QueryTag, Tendermint37Client, TxEvent } from '@cosmjs/tendermint-rpc/build/tendermint37';
 import { EventEmitter } from 'stream';
-import { Event, IndexedTx, StargateClient } from '@cosmjs/stargate';
+import { AminoTypes, Event, IndexedTx, StargateClient } from '@cosmjs/stargate';
 import { parseTxEvent } from './helpers';
 import { NewBlockHeaderEvent } from '@cosmjs/tendermint-rpc';
 import xs, { Stream } from 'xstream';
@@ -98,6 +98,7 @@ export class SyncData extends EventEmitter {
   }
 
   parseTxResponse(tx: IndexedTx): Tx {
+
     return {
       ...tx,
       timestamp: (tx as any).timestamp
@@ -131,8 +132,10 @@ export class SyncData extends EventEmitter {
     // sleep so that we can delay the number of RPC calls per sec, reducing the traffic load
     const { queryTags, limit, offset } = this.options;
     // wait until running is on
-    if (!this.running)
-      return this.timer = setTimeout(() => this.queryTendermintParallel(client), this.options.interval);
+    if (!this.running){
+      this.timer = setTimeout(() => this.queryTendermintParallel(client), this.options.interval);
+      return;
+    }
     try {
       let currentHeight = await client.getHeight();
       let parallelLevel = this.calculateParallelLevel(offset, currentHeight);
@@ -152,6 +155,7 @@ export class SyncData extends EventEmitter {
         limit,
         currentHeight
       );
+
       this.emit(CHANNEL.QUERY, {
         txs: storedResults,
         offset: this.options.offset,
@@ -238,5 +242,21 @@ export class SyncData extends EventEmitter {
     return [channelTx, channelNewBlockHeader];
   }
 }
+
+// (async()=>{
+//   const sync = new SyncData({
+//     rpcUrl: 'http://3.14.142.99:26657/',
+//     queryTags: [],
+//     limit: 50,
+//     offset: 19000000,
+//     interval: 2000,
+//     maxThreadLevel: 4
+//   });
+//   await sync.start()
+//   sync.on(CHANNEL.QUERY, (data:Txs) => {
+//     console.log({tx: data.txs[0]})
+//   })
+
+// })();
 
 export * from './helpers';
