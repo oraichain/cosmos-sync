@@ -1,11 +1,12 @@
 import { buildQuery } from '@cosmjs/tendermint-rpc/build/tendermint37/requests';
 import { QueryTag, Tendermint37Client, TxEvent } from '@cosmjs/tendermint-rpc/build/tendermint37';
 import { EventEmitter } from 'stream';
-import { AminoTypes, Event, IndexedTx, StargateClient } from '@cosmjs/stargate';
+import { Event, IndexedTx, StargateClient } from '@cosmjs/stargate';
 import { parseTxEvent } from './helpers';
 import { NewBlockHeaderEvent } from '@cosmjs/tendermint-rpc';
 import xs, { Stream } from 'xstream';
 import { clearTimeout } from 'timers';
+import { exit } from 'process';
 
 export enum CHANNEL {
   QUERY = 'query',
@@ -57,8 +58,7 @@ export type SyncDataOptions = {
 export class SyncData extends EventEmitter {
   public options: SyncDataOptions;
   private tendermintClient: Tendermint37Client = undefined;
-  private running = false;
-  private timer = null;
+  private channelQuery: Stream<unknown>;
 
   constructor(options: SyncDataOptions) {
     super({ captureRejections: true });
@@ -74,21 +74,22 @@ export class SyncData extends EventEmitter {
   }
 
   public async start() {
-    this.running = true;
     this.tendermintClient = await Tendermint37Client.connect(
       this.options.rpcUrl.replace(/(http)(s)?\:\/\//, 'ws$2://')
     );
     const stargateClient = await StargateClient.create(this.tendermintClient);
     const [channelTx, channelNewBlockHeader] = this.subscribeEvents() as [Stream<TxEvent>, Stream<NewBlockHeaderEvent>];
-    await this.queryTendermintParallel(stargateClient);
+    this.channelQuery = xs.periodic(this.options.interval);
+    this.channelQuery.addListener({
+      next: (_) => this.queryTendermintParallel(stargateClient)
+    });
 
     return [channelTx, channelNewBlockHeader];
   }
 
   public destroy() {
-    if (this.timer) {
-      clearTimeout(this.timer);
-    }
+    // end stream
+    this.channelQuery.endWhen(xs.empty());
     Object.values(CHANNEL).forEach((channel) => {
       this.removeAllListeners(channel);
     });
@@ -128,10 +129,6 @@ export class SyncData extends EventEmitter {
     // sleep so that we can delay the number of RPC calls per sec, reducing the traffic load
     const { queryTags, limit, offset } = this.options;
     // wait until running is on
-    if (!this.running) {
-      this.timer = setTimeout(() => this.queryTendermintParallel(client), this.options.interval);
-      return;
-    }
     try {
       let currentHeight = await client.getHeight();
       let parallelLevel = this.calculateParallelLevel(offset, currentHeight);
@@ -161,8 +158,6 @@ export class SyncData extends EventEmitter {
       console.log('error query tendermint parallel: ', error);
       // this makes sure that the stream doesn't stop and keeps reading forever even when there's an error
       throw error;
-    } finally {
-      this.timer = setTimeout(() => this.queryTendermintParallel(client), this.options.interval);
     }
   };
 
@@ -240,13 +235,17 @@ export class SyncData extends EventEmitter {
 //     queryTags: [],
 //     limit: 50,
 //     offset: 18980056,
-//     interval: 2000,
+//     interval: 5000,
 //     maxThreadLevel: 4
 //   });
 //   await sync.start();
-//   // sync.on(CHANNEL.QUERY, (data: Txs) => {
-//   //   console.log({ tx: data.txs[0] });
-//   // });
+//   sync.on(CHANNEL.QUERY, (data: Txs) => {
+//     console.log({ tx: data.txs[0] });
+//   });
+//   setTimeout(() => {
+//     sync.destroy();
+//     exit(0);
+//   }, 15000);
 // })();
 
 export * from './helpers';
