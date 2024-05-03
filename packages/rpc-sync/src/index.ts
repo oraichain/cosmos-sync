@@ -206,7 +206,6 @@ export class SyncData extends EventEmitter {
     // to get timeStamp from 2 channel
     channelTx.addListener({
       next: (event: TxEvent & { timestamp: string }) => {
-        console.log({event});
         const parsedTxEvent = parseTxEvent(event);
         this.emit(CHANNEL.SUBSCRIBE_TXS, {
           ...parsedTxEvent,
