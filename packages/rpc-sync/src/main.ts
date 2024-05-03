@@ -1,4 +1,4 @@
-import { SyncData } from "src";
+import { CHANNEL, SyncData, Txs } from "src";
 
 (async () => {
     const sync = new SyncData({
@@ -10,11 +10,11 @@ import { SyncData } from "src";
       maxThreadLevel: 4
     });
     await sync.start();
-    // sync.on(CHANNEL.QUERY, (data: Txs) => {
-    //   console.log({ tx: data.txs[0] });
-    // });
-  //  sync.on(CHANNEL.SUBSCRIBE_TXS, (data) => {
-  //   console.log({data});
+    sync.on(CHANNEL.QUERY, (data: Txs) => {
+      console.log({ tx: data.txs[0] });
+    });
+   sync.on(CHANNEL.SUBSCRIBE_TXS, (data) => {
+    console.log({data});
   
-  //  })
+   })
   })();
