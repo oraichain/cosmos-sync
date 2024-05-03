@@ -5,8 +5,6 @@ import { Event, IndexedTx, StargateClient } from '@cosmjs/stargate';
 import { parseTxEvent } from './helpers';
 import { NewBlockHeaderEvent } from '@cosmjs/tendermint-rpc';
 import xs, { Stream } from 'xstream';
-import { clearTimeout } from 'timers';
-import { exit } from 'process';
 
 export enum CHANNEL {
   QUERY = 'query',
@@ -77,7 +75,7 @@ export class SyncData extends EventEmitter {
     this.tendermintClient = await Tendermint37Client.connect(
       this.options.rpcUrl.replace(/(http)(s)?\:\/\//, 'ws$2://')
     );
-    const stargateClient = await StargateClient.create(this.tendermintClient);
+    const stargateClient = await StargateClient.connect(this.options.rpcUrl);
     const [channelTx, channelNewBlockHeader] = this.subscribeEvents() as [Stream<TxEvent>, Stream<NewBlockHeaderEvent>];
     this.channelQuery = xs.periodic(this.options.interval);
     this.channelQuery.addListener({
@@ -157,7 +155,7 @@ export class SyncData extends EventEmitter {
     } catch (error) {
       console.log('error query tendermint parallel: ', error);
       // this makes sure that the stream doesn't stop and keeps reading forever even when there's an error
-      throw error;
+      // throw error;
     }
   };
 
@@ -208,6 +206,7 @@ export class SyncData extends EventEmitter {
     // to get timeStamp from 2 channel
     channelTx.addListener({
       next: (event: TxEvent & { timestamp: string }) => {
+        console.log({event});
         const parsedTxEvent = parseTxEvent(event);
         this.emit(CHANNEL.SUBSCRIBE_TXS, {
           ...parsedTxEvent,
@@ -229,23 +228,23 @@ export class SyncData extends EventEmitter {
   }
 }
 
-// (async () => {
-//   const sync = new SyncData({
-//     rpcUrl: 'http://localhost:26657/',
-//     queryTags: [],
-//     limit: 50,
-//     offset: 18980056,
-//     interval: 5000,
-//     maxThreadLevel: 4
-//   });
-//   await sync.start();
-//   sync.on(CHANNEL.QUERY, (data: Txs) => {
-//     console.log({ tx: data.txs[0] });
-//   });
-//   setTimeout(() => {
-//     sync.destroy();
-//     exit(0);
-//   }, 15000);
-// })();
+(async () => {
+  const sync = new SyncData({
+    rpcUrl: 'https://socket.orai.network/',
+    queryTags: [],
+    limit: 50,
+    offset: 19404388,
+    interval: 5000,
+    maxThreadLevel: 4
+  });
+  await sync.start();
+  // sync.on(CHANNEL.QUERY, (data: Txs) => {
+  //   console.log({ tx: data.txs[0] });
+  // });
+//  sync.on(CHANNEL.SUBSCRIBE_TXS, (data) => {
+//   console.log({data});
+
+//  })
+})();
 
 export * from './helpers';
