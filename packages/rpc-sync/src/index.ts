@@ -57,6 +57,8 @@ export class SyncData extends EventEmitter {
   public options: SyncDataOptions;
   private tendermintClient: Tendermint37Client = undefined;
   private channelQuery: Stream<unknown>;
+  private stargateClient: StargateClient;
+  private timer: NodeJS.Timer
 
   constructor(options: SyncDataOptions) {
     super({ captureRejections: true });
@@ -75,19 +77,16 @@ export class SyncData extends EventEmitter {
     this.tendermintClient = await Tendermint37Client.connect(
       this.options.rpcUrl.replace(/(http)(s)?\:\/\//, 'ws$2://')
     );
-    const stargateClient = await StargateClient.connect(this.options.rpcUrl);
+    this.stargateClient = await StargateClient.connect(this.options.rpcUrl);
     const [channelTx, channelNewBlockHeader] = this.subscribeEvents() as [Stream<TxEvent>, Stream<NewBlockHeaderEvent>];
-    this.channelQuery = xs.periodic(this.options.interval);
-    this.channelQuery.addListener({
-      next: (_) => this.queryTendermintParallel(stargateClient)
-    });
-
+    this.timer = setTimeout(this.queryTendermintParallel,this.options.interval, this.stargateClient)
     return [channelTx, channelNewBlockHeader];
   }
 
   public destroy() {
     // end stream
     this.channelQuery.endWhen(xs.empty());
+    clearTimeout(this.timer);
     Object.values(CHANNEL).forEach((channel) => {
       this.removeAllListeners(channel);
     });
@@ -124,38 +123,38 @@ export class SyncData extends EventEmitter {
   }
 
   private queryTendermintParallel = async (client: StargateClient) => {
-    // sleep so that we can delay the number of RPC calls per sec, reducing the traffic load
-    const { queryTags, limit, offset } = this.options;
-    // wait until running is on
     try {
+      const { queryTags, limit, offset } = this.options;
       let currentHeight = await client.getHeight();
-      let parallelLevel = this.calculateParallelLevel(offset, currentHeight);
-      let threads = [];
-      for (let i = 0; i < parallelLevel; i++) {
-        threads.push(this.queryTendermint(client, i, offset, currentHeight));
+      if(currentHeight > offset) {
+        let parallelLevel = this.calculateParallelLevel(offset, currentHeight);
+        let threads = [];
+        for (let i = 0; i < parallelLevel; i++) {
+          threads.push(this.queryTendermint(client, i, offset, currentHeight));
+        }
+        const results: Tx[][] = await Promise.all(threads);
+        let storedResults: Tx[] = [];
+        for (let result of results) {
+          storedResults.push(...result);
+        }
+        // calculate the next offset
+        this.options.offset = this.calculateMaxSearchHeight(
+          // parallel - 1 because its the final thread id which handles the highest offset possible assuming we have processed all height before it
+          this.calculateOffsetParallel(parallelLevel - 1, offset),
+          limit,
+          currentHeight
+        );
+        this.emit(CHANNEL.QUERY, {
+          txs: storedResults,
+          offset: this.options.offset,
+          queryTags
+        });
       }
-      const results: Tx[][] = await Promise.all(threads);
-      let storedResults: Tx[] = [];
-      for (let result of results) {
-        storedResults.push(...result);
-      }
-      // calculate the next offset
-      this.options.offset = this.calculateMaxSearchHeight(
-        // parallel - 1 because its the final thread id which handles the highest offset possible assuming we have processed all height before it
-        this.calculateOffsetParallel(parallelLevel - 1, offset),
-        limit,
-        currentHeight
-      );
-
-      this.emit(CHANNEL.QUERY, {
-        txs: storedResults,
-        offset: this.options.offset,
-        queryTags
-      });
     } catch (error) {
       console.log('error query tendermint parallel: ', error);
       // this makes sure that the stream doesn't stop and keeps reading forever even when there's an error
-      // throw error;
+    } finally {
+      this.timer = setTimeout(this.queryTendermintParallel, this.options.interval, client);
     }
   };
 
