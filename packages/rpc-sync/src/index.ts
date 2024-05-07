@@ -167,7 +167,7 @@ export class SyncData extends EventEmitter {
     const { queryTags } = this.options;
     const oldOffset = this.calculateOffsetParallel(threadId, offset);
     const newOffset = this.calculateMaxSearchHeight(oldOffset, this.options.limit, currentHeight);
-    if(newOffset > newOffset) {
+    if(newOffset > oldOffset) {
       const query = this.buildTendermintQuery(
         queryTags,
         oldOffset,
