@@ -165,15 +165,19 @@ export class SyncData extends EventEmitter {
     currentHeight: number
   ): Promise<Tx[]> {
     const { queryTags } = this.options;
-    const newOffset = this.calculateOffsetParallel(threadId, offset);
-    const query = this.buildTendermintQuery(
-      queryTags,
-      newOffset,
-      this.calculateMaxSearchHeight(newOffset, this.options.limit, currentHeight)
-    );
-    const result = await stargateClient.searchTx(query);
-    const storedResults = result.map((tx) => this.parseTxResponse(tx));
-    return storedResults;
+    const oldOffset = this.calculateOffsetParallel(threadId, offset);
+    const newOffset = this.calculateMaxSearchHeight(oldOffset, this.options.limit, currentHeight);
+    if(newOffset > newOffset) {
+      const query = this.buildTendermintQuery(
+        queryTags,
+        oldOffset,
+        this.calculateMaxSearchHeight(oldOffset, this.options.limit, currentHeight)
+      );
+      const result = await stargateClient.searchTx(query);
+      const storedResults = result.map((tx) => this.parseTxResponse(tx));
+      return storedResults;
+    }
+    return []
   }
 
   private subscribeEvents() {
