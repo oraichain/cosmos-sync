@@ -24,7 +24,7 @@ index 8c72817..2b810d2 100644
      }
  }
 diff --git a/node_modules/@cosmjs/tendermint-rpc/build/tendermint34/adaptor/responses.js b/node_modules/@cosmjs/tendermint-rpc/build/tendermint34/adaptor/responses.js
-index a426641..9f33204 100644
+index a426641..1306f0f 100644
 --- a/node_modules/@cosmjs/tendermint-rpc/build/tendermint34/adaptor/responses.js
 +++ b/node_modules/@cosmjs/tendermint-rpc/build/tendermint34/adaptor/responses.js
 @@ -320,6 +320,7 @@ function decodeTxProof(data) {
@@ -35,3 +35,73 @@ index a426641..9f33204 100644
          tx: (0, encoding_1.fromBase64)((0, encodings_1.assertNotEmpty)(data.tx)),
          result: decodeTxData((0, encodings_1.assertObject)(data.tx_result)),
          height: (0, inthelpers_1.apiToSmallInt)((0, encodings_1.assertNotEmpty)(data.height)),
+@@ -337,6 +338,7 @@ function decodeTxSearch(data) {
+ function decodeTxEvent(data) {
+     const tx = (0, encoding_1.fromBase64)((0, encodings_1.assertNotEmpty)(data.tx));
+     return {
++        ...data,
+         tx: tx,
+         hash: (0, hasher_1.hashTx)(tx),
+         result: decodeTxData(data.result),
+@@ -431,7 +433,7 @@ class Responses {
+         return decodeHeader(event.data.value.header);
+     }
+     static decodeTxEvent(event) {
+-        return decodeTxEvent(event.data.value.TxResult);
++        return decodeTxEvent({...event.data.value.TxResult, timestamp: event.data.value.Timestamp});
+     }
+     static decodeTx(response) {
+         return decodeTxResponse(response.result);
+diff --git a/node_modules/@cosmjs/tendermint-rpc/build/tendermint34/responses.d.ts b/node_modules/@cosmjs/tendermint-rpc/build/tendermint34/responses.d.ts
+index 18ab74f..82130c7 100644
+--- a/node_modules/@cosmjs/tendermint-rpc/build/tendermint34/responses.d.ts
++++ b/node_modules/@cosmjs/tendermint-rpc/build/tendermint34/responses.d.ts
+@@ -121,6 +121,7 @@ export interface NewBlockEvent extends Block {
+ export interface NewBlockHeaderEvent extends Header {
+ }
+ export interface TxEvent {
++    readonly timestamp?: string;
+     readonly tx: Uint8Array;
+     readonly hash: Uint8Array;
+     readonly height: number;
+diff --git a/node_modules/@cosmjs/tendermint-rpc/build/tendermint37/adaptor/responses.js b/node_modules/@cosmjs/tendermint-rpc/build/tendermint37/adaptor/responses.js
+index 961f32d..47912a0 100644
+--- a/node_modules/@cosmjs/tendermint-rpc/build/tendermint37/adaptor/responses.js
++++ b/node_modules/@cosmjs/tendermint-rpc/build/tendermint37/adaptor/responses.js
+@@ -320,6 +320,7 @@ function decodeTxProof(data) {
+ }
+ function decodeTxResponse(data) {
+     return {
++        ...data,
+         tx: (0, encoding_1.fromBase64)((0, encodings_1.assertNotEmpty)(data.tx)),
+         result: decodeTxData((0, encodings_1.assertObject)(data.tx_result)),
+         height: (0, inthelpers_1.apiToSmallInt)((0, encodings_1.assertNotEmpty)(data.height)),
+@@ -337,6 +338,7 @@ function decodeTxSearch(data) {
+ function decodeTxEvent(data) {
+     const tx = (0, encoding_1.fromBase64)((0, encodings_1.assertNotEmpty)(data.tx));
+     return {
++        ...data,
+         tx: tx,
+         hash: (0, hasher_1.hashTx)(tx),
+         result: decodeTxData(data.result),
+@@ -431,7 +433,7 @@ class Responses {
+         return decodeHeader(event.data.value.header);
+     }
+     static decodeTxEvent(event) {
+-        return decodeTxEvent(event.data.value.TxResult);
++        return decodeTxEvent({...event.data.value.TxResult, timestamp: event.data.value.Timestamp});
+     }
+     static decodeTx(response) {
+         return decodeTxResponse(response.result);
+diff --git a/node_modules/@cosmjs/tendermint-rpc/build/tendermint37/responses.d.ts b/node_modules/@cosmjs/tendermint-rpc/build/tendermint37/responses.d.ts
+index db02d13..1830d16 100644
+--- a/node_modules/@cosmjs/tendermint-rpc/build/tendermint37/responses.d.ts
++++ b/node_modules/@cosmjs/tendermint-rpc/build/tendermint37/responses.d.ts
+@@ -121,6 +121,7 @@ export interface NewBlockEvent extends Block {
+ export interface NewBlockHeaderEvent extends Header {
+ }
+ export interface TxEvent {
++    readonly timestamp?: string;
+     readonly tx: Uint8Array;
+     readonly hash: Uint8Array;
+     readonly height: number;
