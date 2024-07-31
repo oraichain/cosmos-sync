@@ -1422,6 +1422,13 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
+"@keplr-wallet/types@^0.12.118":
+  version "0.12.118"
+  resolved "https://registry.yarnpkg.com/@keplr-wallet/types/-/types-0.12.118.tgz#4ccb63947d18e6653018599f7c70675c8a4cb66b"
+  integrity sha512-A+XAptdyd7IWbcIVn9QrBB+bcZBpioi0BCSWqTGcF2rRxJzGwYVt7WUxhiB/8i3mLwWTej64pTMWyudpK1+PCg==
+  dependencies:
+    long "^4.0.0"
+
 "@lerna/create@8.1.2":
   version "8.1.2"
   resolved "https://registry.yarnpkg.com/@lerna/create/-/create-8.1.2.tgz#4dc8b3f59c963275bfb8b390491068751101f477"

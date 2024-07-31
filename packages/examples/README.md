@@ -7,22 +7,31 @@
 
 ```ts
 import { SyncData } from '@oraichain/cosmos-rpc-sync';
-import { ORAI_TOKEN_CONTRACTS } from '@oraichain/common';
+import { COSMOS_CHAIN_IDS, ORAI_TOKEN_CONTRACTS, OraiCommon } from '@oraichain/common';
+import { StargateClient } from '@cosmjs/stargate';
 
-const RPC = 'https://rpc.orai.io';
 const LIMIT = 4000;
-const OFFSET = 28919883; // current block height when write example
+
+const genQueryTagContract = (contractAddress: string) => {
+  return [
+    {
+      key: 'wasm._contract_address',
+      value: contractAddress
+    }
+  ];
+};
 
 const main = async () => {
+  const common = await OraiCommon.initializeFromGitRaw({ chainIds: [COSMOS_CHAIN_IDS.ORAICHAIN] });
+  const rpc = common.chainInfos.cosmosChains.find((chain) => chain.chainId === COSMOS_CHAIN_IDS.ORAICHAIN).rpc;
+  const client = await StargateClient.connect(rpc);
+  const latestBlock = await client.getHeight();
+  // const latestBlock =
   const syncData = new SyncData({
-    queryTags: [
-      {
-        key: 'wasm._contract_address',
-        value: ORAI_TOKEN_CONTRACTS.USDC
-      }
-    ],
-    rpcUrl: RPC,
-    offset: OFFSET,
+    queryTags: genQueryTagContract(ORAI_TOKEN_CONTRACTS.USDC),
+    rpcUrl: rpc,
+    offset: latestBlock,
+    interval: 1000,
     limit: LIMIT
   });
 
@@ -57,22 +66,29 @@ The results will be handled by listen to event `data`, here we just basically lo
 ## Basic listening for transactions of an address
 
 ```ts
-import { SyncData } from '@oraichain/cosmos-rpc-sync';
 
-const RPC = 'https://rpc.orai.io';
+import { SyncData } from '@oraichain/cosmos-rpc-sync';
+import { COSMOS_CHAIN_IDS, ORAI_TOKEN_CONTRACTS, OraiCommon } from '@oraichain/common';
+import { StargateClient } from '@cosmjs/stargate';
+
 const LIMIT = 4000;
-const OFFSET = 28919883; // current block height when write example
 
 const main = async () => {
+  const common = await OraiCommon.initializeFromGitRaw({ chainIds: [COSMOS_CHAIN_IDS.ORAICHAIN] });
+  const rpc = common.chainInfos.cosmosChains.find((chain) => chain.chainId === COSMOS_CHAIN_IDS.ORAICHAIN).rpc;
+  const client = await StargateClient.connect(rpc);
+  const latestBlock = await client.getHeight();
+  // const latestBlock =
   const syncData = new SyncData({
-    queryTags: [
+    queryTags: queryTags: [
       {
         key: 'message.sender',
         value: "orai1lwuqpj9teef8j0rjy2l4c5ay9yddw26m03tlem"
       }
     ],
-    rpcUrl: RPC,
-    offset: OFFSET,
+    rpcUrl: rpc,
+    offset: latestBlock,
+    interval: 1000,
     limit: LIMIT
   });
 

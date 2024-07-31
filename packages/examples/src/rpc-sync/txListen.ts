@@ -1,9 +1,8 @@
 import { SyncData } from '@oraichain/cosmos-rpc-sync';
-import { ORAI_TOKEN_CONTRACTS } from '@oraichain/common';
+import { COSMOS_CHAIN_IDS, ORAI_TOKEN_CONTRACTS, OraiCommon } from '@oraichain/common';
+import { StargateClient } from '@cosmjs/stargate';
 
-const RPC = 'https://rpc.orai.io';
 const LIMIT = 4000;
-const OFFSET = 28919883; // current block height when write example
 
 const genQueryTagContract = (contractAddress: string) => {
   return [
@@ -24,11 +23,17 @@ const genQueryTagAddress = (address: string) => {
 };
 
 const main = async () => {
+  const common = await OraiCommon.initializeFromGitRaw({ chainIds: [COSMOS_CHAIN_IDS.ORAICHAIN] });
+  const rpc = common.chainInfos.cosmosChains.find((chain) => chain.chainId === COSMOS_CHAIN_IDS.ORAICHAIN).rpc;
+  const client = await StargateClient.connect(rpc);
+  const latestBlock = await client.getHeight();
+  // const latestBlock =
   const syncData = new SyncData({
     queryTags: genQueryTagContract(ORAI_TOKEN_CONTRACTS.USDC),
-    rpcUrl: RPC,
-    offset: OFFSET,
-    limit: LIMIT
+    rpcUrl: rpc,
+    offset: latestBlock,
+    interval: 1000,
+    limit: 10
   });
 
   await syncData.start();
