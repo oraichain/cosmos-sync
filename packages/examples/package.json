@@ -1,0 +1,16 @@
+{
+  "name": "@oraichain/cosmos-sync-examples",
+  "version": "1.0.0",
+  "main": "build/index.js",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "files": [
+    "build/"
+  ],
+  "dependencies": {
+    "@oraichain/common": "^1.0.3",
+    "@oraichain/cosmos-rpc-sync": "^1.0.11"
+  }
+}
