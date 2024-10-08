@@ -23,5 +23,6 @@
   "devDependencies": {
     "nodemon": "^3.1.0",
     "ts-node": "^10.9.2"
-  }
+  },
+  "gitHead": "01fe918917830a6ee1b3b380d035747c2697ddb0"
 }
