@@ -3,8 +3,6 @@ import { QueryTag, Tendermint37Client, TxEvent } from '@cosmjs/tendermint-rpc/bu
 import { EventEmitter } from 'stream';
 import { Event, IndexedTx, StargateClient } from '@cosmjs/stargate';
 import { parseTxEvent } from './helpers';
-import { NewBlockHeaderEvent } from '@cosmjs/tendermint-rpc';
-import xs, { Stream } from 'xstream';
 
 export enum CHANNEL {
   QUERY = 'query',
@@ -56,9 +54,9 @@ export type SyncDataOptions = {
 export class SyncData extends EventEmitter {
   public options: SyncDataOptions;
   private tendermintClient: Tendermint37Client = undefined;
-  private channelQuery: Stream<unknown>;
+  // private channelQuery: Stream<unknown>;
   private stargateClient: StargateClient;
-  private timer: NodeJS.Timer
+  private timer: NodeJS.Timer;
 
   constructor(options: SyncDataOptions) {
     super({ captureRejections: true });
@@ -73,19 +71,29 @@ export class SyncData extends EventEmitter {
     };
   }
 
-  public async start() {
+  public async initClient() {
     this.tendermintClient = await Tendermint37Client.connect(
       this.options.rpcUrl.replace(/(http)(s)?\:\/\//, 'ws$2://')
     );
     this.stargateClient = await StargateClient.connect(this.options.rpcUrl);
-    const [channelTx, channelNewBlockHeader] = this.subscribeEvents() as [Stream<TxEvent>, Stream<NewBlockHeaderEvent>];
-    this.timer = setTimeout(this.queryTendermintParallel,this.options.interval, this.stargateClient)
-    return [channelTx, channelNewBlockHeader];
+  }
+
+  public startSpecificService(type: 'polling' | 'streaming') {
+    switch (type) {
+      case 'polling':
+        this.timer = setTimeout(this.queryTendermintParallel, this.options.interval, this.stargateClient);
+        break;
+      case 'streaming':
+        this.subscribeEvents();
+        break;
+      default:
+        throw new Error(`Service ${type} is not exist!`);
+    }
   }
 
   public destroy() {
     // end stream
-    this.channelQuery.endWhen(xs.empty());
+    // this.channelQuery.endWhen(xs.empty());
     clearTimeout(this.timer);
     Object.values(CHANNEL).forEach((channel) => {
       this.removeAllListeners(channel);
@@ -126,7 +134,7 @@ export class SyncData extends EventEmitter {
     try {
       const { queryTags, limit, offset } = this.options;
       let currentHeight = await client.getHeight();
-      if(currentHeight > offset) {
+      if (currentHeight > offset) {
         let parallelLevel = this.calculateParallelLevel(offset, currentHeight);
         let threads = [];
         for (let i = 0; i < parallelLevel; i++) {
@@ -167,17 +175,13 @@ export class SyncData extends EventEmitter {
     const { queryTags } = this.options;
     const threadOffset = this.calculateOffsetParallel(threadId, offset);
     const newOffset = this.calculateMaxSearchHeight(threadOffset, this.options.limit, currentHeight);
-    if(newOffset > threadOffset) {
-      const query = this.buildTendermintQuery(
-        queryTags,
-        threadOffset,
-        newOffset
-      );
+    if (newOffset > threadOffset) {
+      const query = this.buildTendermintQuery(queryTags, threadOffset, newOffset);
       const result = await stargateClient.searchTx(query);
       const storedResults = result.map((tx) => this.parseTxResponse(tx));
       return storedResults;
     }
-    return []
+    return [];
   }
 
   private subscribeEvents() {
@@ -186,25 +190,6 @@ export class SyncData extends EventEmitter {
 
     // subscribe the tx by filter
     const channelTx = this.tendermintClient.subscribeTx(query);
-
-    // subscribe the new blockHeader for get timestamp
-    const channelNewBlockHeader = this.tendermintClient.subscribeNewBlockHeader();
-    channelNewBlockHeader.addListener({
-      next: (data) => {
-        this.emit(CHANNEL.SUBSCRIBE_HEADER, {
-          height: data.height,
-          timestamp: data.time.toISOString()
-        });
-      },
-      error: (error) => {
-        console.log('On error channelNewBlockHeader stream ', error);
-        this.emit(CHANNEL.ERROR, error);
-      },
-      complete: () => {
-        console.log('On complete channelNewBlockHeader stream');
-        this.emit(CHANNEL.COMPLETE);
-      }
-    });
 
     // to get timeStamp from 2 channel
     channelTx.addListener({
@@ -225,11 +210,7 @@ export class SyncData extends EventEmitter {
         this.emit(CHANNEL.COMPLETE);
       }
     });
-
-    return [channelTx, channelNewBlockHeader];
   }
 }
-
-
 
 export * from './helpers';
