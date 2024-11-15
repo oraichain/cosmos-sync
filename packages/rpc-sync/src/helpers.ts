@@ -12,8 +12,8 @@ export interface ParsedTxEvent {
     codespace?: string;
     log?: string;
     data?: Uint8Array;
-    gasWanted: number;
-    gasUsed: number;
+    gasWanted: bigint;
+    gasUsed: bigint;
   };
 }
 
