@@ -1,5 +1,6 @@
 import { buildQuery } from '@cosmjs/tendermint-rpc/build/tendermint37/requests';
-import { QueryTag, Tendermint37Client, TxEvent } from '@cosmjs/tendermint-rpc/build/tendermint37';
+import { QueryTag, TxEvent } from '@cosmjs/tendermint-rpc/build/tendermint37';
+import { Comet38Client } from '@cosmjs/tendermint-rpc';
 import { EventEmitter } from 'stream';
 import { Event, IndexedTx, StargateClient } from '@cosmjs/stargate';
 import { parseTxEvent } from './helpers';
@@ -53,7 +54,7 @@ export type SyncDataOptions = {
 
 export class SyncData extends EventEmitter {
   public options: SyncDataOptions;
-  private tendermintClient: Tendermint37Client = undefined;
+  private cometClient: Comet38Client = undefined;
   // private channelQuery: Stream<unknown>;
   private stargateClient: StargateClient;
   private timer: NodeJS.Timer;
@@ -72,9 +73,7 @@ export class SyncData extends EventEmitter {
   }
 
   public async initClient() {
-    this.tendermintClient = await Tendermint37Client.connect(
-      this.options.rpcUrl.replace(/(http)(s)?\:\/\//, 'ws$2://')
-    );
+    this.cometClient = await Comet38Client.connect(this.options.rpcUrl);
     this.stargateClient = await StargateClient.connect(this.options.rpcUrl);
   }
 
@@ -189,8 +188,7 @@ export class SyncData extends EventEmitter {
     const query = buildQuery({ tags: queryTags });
 
     // subscribe the tx by filter
-    const channelTx = this.tendermintClient.subscribeTx(query);
-
+    const channelTx = this.cometClient.subscribeTx(query);
     // to get timeStamp from 2 channel
     channelTx.addListener({
       next: (event: TxEvent & { timestamp: string }) => {
