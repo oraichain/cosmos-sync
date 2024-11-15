@@ -1,0 +1,12 @@
+diff --git a/node_modules/@cosmjs/tendermint-rpc/build/comet38/adaptor/responses.js b/node_modules/@cosmjs/tendermint-rpc/build/comet38/adaptor/responses.js
+index 29ec063..52c708f 100644
+--- a/node_modules/@cosmjs/tendermint-rpc/build/comet38/adaptor/responses.js
++++ b/node_modules/@cosmjs/tendermint-rpc/build/comet38/adaptor/responses.js
+@@ -312,6 +312,7 @@ function decodeTxProof(data) {
+ }
+ function decodeTxResponse(data) {
+     return {
++        ...data,
+         tx: (0, encoding_1.fromBase64)((0, encodings_1.assertNotEmpty)(data.tx)),
+         result: decodeTxData((0, encodings_1.assertObject)(data.tx_result)),
+         height: (0, inthelpers_1.apiToSmallInt)((0, encodings_1.assertNotEmpty)(data.height)),
